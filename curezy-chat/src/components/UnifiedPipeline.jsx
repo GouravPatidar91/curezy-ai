@@ -141,9 +141,9 @@ export default function UnifiedPipeline() {
                     {/* Left Column (Fades in during Phase 3) */}
                     <motion.div
                         style={{ opacity: leftPanelOpacity, x: leftPanelX }}
-                        className="absolute left-6 w-[41.666%] h-[600px] flex flex-col justify-center pointer-events-none z-0 hidden lg:flex"
+                        className="absolute left-6 w-[41.666%] h-[520px] flex flex-col justify-center pointer-events-none z-0 hidden lg:flex"
                     >
-                        <div className="mb-12">
+                        <div className="mb-8">
                             <h3 className="text-[#FF7A00] font-bold text-lg mb-2">AI Pipeline</h3>
                             <h2 className="text-4xl lg:text-5xl font-bold tracking-tight text-white leading-tight">Diagnostics,<br />end-to-end.</h2>
                         </div>
@@ -161,7 +161,7 @@ export default function UnifiedPipeline() {
                                 <div className="w-1.5 h-1.5 bg-white rounded-full" />
                             </motion.div>
 
-                            <div className="space-y-16">
+                            <div className="space-y-8">
                                 {PIPELINE_STEPS.map((step, idx) => {
                                     const stepOp = useTransform(scrollYProgress,
                                         [0.6 + (idx - 0.5) * 0.13, 0.6 + idx * 0.13, 0.6 + (idx + 0.5) * 0.13],
@@ -189,7 +189,7 @@ export default function UnifiedPipeline() {
                             opacity: mockupOpacity,
                             y: mockupY
                         }}
-                        className="h-[600px] bg-[#0a0a15] rounded-[2rem] border border-white/10 shadow-[0_0_100px_rgba(77,77,255,0.1)] flex flex-col overflow-hidden relative z-10 mx-auto lg:mr-0"
+                        className="h-[520px] bg-[#0a0a15] rounded-[2rem] border border-white/10 shadow-[0_0_100px_rgba(77,77,255,0.1)] flex flex-col overflow-hidden relative z-10 mx-auto lg:mr-0"
                     >
                         {/* Browser header */}
                         <div className="h-12 border-b border-white/5 bg-[#050510]/50 flex items-center px-4 gap-4 z-20 shrink-0 backdrop-blur-md">
