@@ -1,0 +1,293 @@
+{
+  "timestamp": "2026-03-01T15:09:53.944738",
+  "mode": "full_council_pipeline",
+  "pipeline": "Parallel Round-1 \u00e2\u2020\u2019 Debate \u00e2\u2020\u2019 Weighted Consensus",
+  "total_q": 35,
+  "elapsed_s": 5264.4,
+  "council": {
+    "score_pct": 91.4,
+    "correct": 32,
+    "total": 35
+  },
+  "individual_round1": {
+    "Dr. Gemma": 94.3,
+    "Dr. OpenBio": 65.7,
+    "Dr. Mistral": 71.4
+  },
+  "individual_postdebate": {
+    "Dr. Gemma": 94.3,
+    "Dr. OpenBio": 62.9,
+    "Dr. Mistral": 80.0
+  },
+  "council_improvement": -2.9,
+  "debate_impact": {
+    "questions_revised": 8,
+    "revised_went_correct": 6
+  },
+  "by_benchmark": {
+    "USMLE Step 1": {
+      "correct": 5,
+      "total": 5,
+      "pct": 100.0
+    },
+    "USMLE Step 2 CK": {
+      "correct": 5,
+      "total": 5,
+      "pct": 100.0
+    },
+    "MMLU Medical Genetics": {
+      "correct": 2,
+      "total": 2,
+      "pct": 100.0
+    },
+    "MMLU Clinical Knowledge": {
+      "correct": 3,
+      "total": 3,
+      "pct": 100.0
+    },
+    "MMLU Anatomy": {
+      "correct": 1,
+      "total": 1,
+      "pct": 100.0
+    },
+    "MMLU Pharmacology": {
+      "correct": 2,
+      "total": 2,
+      "pct": 100.0
+    },
+    "MedMCQA": {
+      "correct": 6,
+      "total": 7,
+      "pct": 85.7
+    },
+    "PubMedQA": {
+      "correct": 5,
+      "total": 5,
+      "pct": 100.0
+    },
+    "Clinical Reasoning": {
+      "correct": 3,
+      "total": 5,
+      "pct": 60.0
+    }
+  },
+  "by_difficulty": {
+    "easy": {
+      "correct": 11,
+      "total": 12,
+      "pct": 91.7
+    },
+    "medium": {
+      "correct": 14,
+      "total": 15,
+      "pct": 93.3
+    },
+    "hard": {
+      "correct": 7,
+      "total": 8,
+      "pct": 87.5
+    }
+  },
+  "by_category": {
+    "Endocrinology": {
+      "correct": 1,
+      "total": 1,
+      "pct": 100.0
+    },
+    "Neurology": {
+      "correct": 2,
+      "total": 2,
+      "pct": 100.0
+    },
+    "Oncology/Pediatrics": {
+      "correct": 1,
+      "total": 1,
+      "pct": 100.0
+    },
+    "Nephrology/Urology": {
+      "correct": 1,
+      "total": 1,
+      "pct": 100.0
+    },
+    "Neurology/Nutrition": {
+      "correct": 1,
+      "total": 1,
+      "pct": 100.0
+    },
+    "Oncology/Pulmonology": {
+      "correct": 1,
+      "total": 1,
+      "pct": 100.0
+    },
+    "Obstetrics": {
+      "correct": 1,
+      "total": 1,
+      "pct": 100.0
+    },
+    "Pediatric Oncology": {
+      "correct": 1,
+      "total": 1,
+      "pct": 100.0
+    },
+    "Hematology/Rheumatology": {
+      "correct": 1,
+      "total": 1,
+      "pct": 100.0
+    },
+    "Genetics": {
+      "correct": 2,
+      "total": 2,
+      "pct": 100.0
+    },
+    "Emergency Medicine": {
+      "correct": 1,
+      "total": 1,
+      "pct": 100.0
+    },
+    "Pharmacology": {
+      "correct": 2,
+      "total": 2,
+      "pct": 100.0
+    },
+    "Nephrology": {
+      "correct": 1,
+      "total": 1,
+      "pct": 100.0
+    },
+    "Anatomy": {
+      "correct": 1,
+      "total": 1,
+      "pct": 100.0
+    },
+    "Pharmacology/Nephrology": {
+      "correct": 1,
+      "total": 1,
+      "pct": 100.0
+    },
+    "Rheumatology": {
+      "correct": 1,
+      "total": 1,
+      "pct": 100.0
+    },
+    "Infectious Disease": {
+      "correct": 1,
+      "total": 2,
+      "pct": 50.0
+    },
+    "Hematology/Oncology": {
+      "correct": 1,
+      "total": 1,
+      "pct": 100.0
+    },
+    "Pediatric Nutrition": {
+      "correct": 0,
+      "total": 1,
+      "pct": 0.0
+    },
+    "Pulmonology/Emergency": {
+      "correct": 1,
+      "total": 1,
+      "pct": 100.0
+    },
+    "Pediatrics/Immunization": {
+      "correct": 1,
+      "total": 1,
+      "pct": 100.0
+    },
+    "Oncology/Urology": {
+      "correct": 1,
+      "total": 1,
+      "pct": 100.0
+    },
+    "Research/Endocrinology": {
+      "correct": 1,
+      "total": 1,
+      "pct": 100.0
+    },
+    "Research/Cardiology": {
+      "correct": 2,
+      "total": 2,
+      "pct": 100.0
+    },
+    "Research Methods/Biostatistics": {
+      "correct": 1,
+      "total": 1,
+      "pct": 100.0
+    },
+    "Biostatistics/Diagnostics": {
+      "correct": 1,
+      "total": 1,
+      "pct": 100.0
+    },
+    "Hematology/Staging": {
+      "correct": 1,
+      "total": 1,
+      "pct": 100.0
+    },
+    "Ophthalmology": {
+      "correct": 0,
+      "total": 1,
+      "pct": 0.0
+    },
+    "Endocrine Surgery": {
+      "correct": 1,
+      "total": 1,
+      "pct": 100.0
+    },
+    "Gastroenterology": {
+      "correct": 1,
+      "total": 1,
+      "pct": 100.0
+    }
+  },
+  "industry_benchmarks": {
+    "GPT-4": {
+      "MedQA": 86.7,
+      "MMLU_Med": 87.0,
+      "MedMCQA": 72.0,
+      "PubMedQA": 74.4
+    },
+    "Gemini Ultra": {
+      "MedQA": 91.1,
+      "MMLU_Med": 91.6,
+      "MedMCQA": 79.0,
+      "PubMedQA": 80.0
+    },
+    "Claude 3 Opus": {
+      "MedQA": 84.3,
+      "MMLU_Med": 88.3,
+      "MedMCQA": 71.0,
+      "PubMedQA": 72.0
+    },
+    "GPT-3.5": {
+      "MedQA": 57.0,
+      "MMLU_Med": 63.9,
+      "MedMCQA": 55.0,
+      "PubMedQA": 61.8
+    },
+    "Meditron 70B": {
+      "MedQA": 74.2,
+      "MMLU_Med": 77.0,
+      "MedMCQA": 64.0,
+      "PubMedQA": 71.0
+    },
+    "Med-Gemma 4B": {
+      "MedQA": 64.4,
+      "MMLU_Med": 66.0,
+      "MedMCQA": 58.0,
+      "PubMedQA": 60.0
+    },
+    "Med-PaLM 2": {
+      "MedQA": 86.5,
+      "MMLU_Med": 85.0,
+      "MedMCQA": 72.3,
+      "PubMedQA": 75.0
+    },
+    "Human Doctor Avg": {
+      "MedQA": 87.0,
+      "MMLU_Med": 88.0,
+      "MedMCQA": 82.0,
+      "PubMedQA": 78.0
+    }
+  }
+}

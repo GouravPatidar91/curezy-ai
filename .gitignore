@@ -1,0 +1,14 @@
+node_modules/
+__pycache__/
+.env
+.ipynb_checkpoints
+.pytest_cache
+venv/
+env/
+.DS_Store
+dist/
+build/
+*.pyc
+
+# ML Models too large for GitHub
+ai-service/.models/
