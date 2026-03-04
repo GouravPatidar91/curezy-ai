@@ -50,7 +50,7 @@ export default function AboutUs() {
                 <h2 className="text-3xl md:text-4xl font-bold text-white leading-tight mb-8">
                     "Curezy AI didn't just automate triage; it gave our attending physicians a tireless, brilliant colleague that never sleeps and never stops reading."
                 </h2>
-                <p className="text-[#4D4DFF] font-bold tracking-widest uppercase text-sm">Dr. Sarah Jenkins, Head of Emergency Medicine</p>
+                <p className="text-[#4D4DFF] font-bold tracking-widest uppercase text-sm">Team Curezy</p>
             </section>
         </div>
     );
