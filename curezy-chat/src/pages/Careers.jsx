@@ -3,12 +3,6 @@ import { motion } from 'framer-motion';
 import { ArrowLeft, Rocket, MapPin, Briefcase, Zap } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
-const JOBS = [
-    { title: "Senior AI Engineer (LLM Inference)", location: "San Francisco, CA / Remote", type: "Full-Time", salary: "$180k - $250k" },
-    { title: "Clinical Deep Learning Researcher", location: "New York, NY / Remote", type: "Full-Time", salary: "$200k - $280k" },
-    { title: "Product Designer (Web3/AI)", location: "Remote", type: "Contract", salary: "$90 - $140/hr" },
-    { title: "Chief Medical Officer (CMO)", location: "Remote", type: "Full-Time", salary: "Competitive + Equity" }
-];
 
 export default function Careers() {
     return (
@@ -41,36 +35,9 @@ export default function Careers() {
                     </div>
                 </div>
 
-                <div>
-                    <h2 className="text-3xl font-bold text-white mb-8 border-b border-white/10 pb-4">Open Positions</h2>
-
-                    <div className="space-y-4">
-                        {JOBS.map((job, i) => (
-                            <motion.div
-                                key={i}
-                                initial={{ opacity: 0, x: -20 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                transition={{ delay: i * 0.1 }}
-                                className="group flex flex-col md:flex-row md:items-center justify-between bg-white/5 hover:bg-white/10 border border-white/10 p-6 rounded-2xl transition-all cursor-pointer"
-                            >
-                                <div>
-                                    <h3 className="text-xl font-bold text-white mb-2 group-hover:text-[#4D4DFF] transition-colors">{job.title}</h3>
-                                    <div className="flex flex-wrap items-center gap-4 text-xs font-medium text-gray-400">
-                                        <div className="flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5" /> {job.location}</div>
-                                        <div className="flex items-center gap-1.5"><Briefcase className="w-3.5 h-3.5" /> {job.type}</div>
-                                        <div className="text-[#FF7A00]">{job.salary}</div>
-                                    </div>
-                                </div>
-                                <button className="mt-4 md:mt-0 px-6 py-2 bg-white/10 text-white rounded-full font-semibold hover:bg-[#4D4DFF] hover:border-[#4D4DFF] border border-white/20 transition-all font-sans text-sm">
-                                    Apply Now
-                                </button>
-                            </motion.div>
-                        ))}
-                    </div>
-
                     <div className="mt-12 text-center p-8 border border-dashed border-white/20 rounded-3xl bg-white/5">
-                        <p className="text-gray-400 mb-4">Don't see a role that fits but still want to build with us?</p>
-                        <a href="mailto:careers@curezy.com" className="text-white font-bold underline decoration-[#4D4DFF] underline-offset-4 hover:text-[#4D4DFF] transition-colors">
+                        <p className="text-gray-400 mb-4">Want to build with us?</p>
+                        <a href="hr@curezy.in" className="text-white font-bold underline decoration-[#4D4DFF] underline-offset-4 hover:text-[#4D4DFF] transition-colors">
                             Send us your portfolio.
                         </a>
                     </div>
