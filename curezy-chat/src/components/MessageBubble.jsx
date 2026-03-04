@@ -1,8 +1,10 @@
 import ReactMarkdown from 'react-markdown'
 import { motion } from 'framer-motion'
+import { AlertCircle, RefreshCcw } from 'lucide-react'
 
-export default function MessageBubble({ message }) {
+export default function MessageBubble({ message, onRetry }) {
     const isUser = message.role === 'user'
+    const isFailed = message.isFailed
 
     return (
         <motion.div
@@ -20,26 +22,47 @@ export default function MessageBubble({ message }) {
             </div>
 
             {/* Bubble */}
-            <div className={`
-        max-w-[78%] rounded-2xl px-4 py-3 shadow-md text-sm leading-relaxed backdrop-blur-md
-        ${isUser
-                    ? 'bg-gradient-to-br from-accent-blue to-accent-purple text-white rounded-br-none shadow-[0_0_15px_rgba(123,44,191,0.3)]'
-                    : 'glass border border-white/10 text-white rounded-bl-none z-10'
-                }
-      `}>
-                {isUser ? (
-                    <p className="whitespace-pre-wrap">{message.content}</p>
-                ) : (
-                    <div className="markdown">
-                        <ReactMarkdown>{message.content}</ReactMarkdown>
-                    </div>
-                )}
+            <div className="flex flex-col max-w-[78%]">
+                <div className={`
+          rounded-2xl px-4 py-3 shadow-md text-sm leading-relaxed backdrop-blur-md relative
+          ${isUser
+                        ? isFailed
+                            ? 'bg-red-500/20 border border-red-500/50 text-white rounded-br-none shadow-[0_0_15px_rgba(239,68,68,0.2)]'
+                            : 'bg-gradient-to-br from-accent-blue to-accent-purple text-white rounded-br-none shadow-[0_0_15px_rgba(123,44,191,0.3)]'
+                        : 'glass border border-white/10 text-white rounded-bl-none z-10'
+                    }
+        `}>
+                    {isFailed && (
+                        <div className="absolute -left-6 top-1/2 -translate-y-1/2 text-red-500 animate-pulse">
+                            <AlertCircle size={18} />
+                        </div>
+                    )}
 
-                <p className={`text-xs mt-1.5 ${isUser ? 'text-gray-300' : 'text-gray-500'}`}>
-                    {new Date(message.timestamp || message.created_at || Date.now()).toLocaleTimeString([], {
-                        hour: '2-digit', minute: '2-digit'
-                    })}
-                </p>
+                    {isUser ? (
+                        <p className="whitespace-pre-wrap">{message.content}</p>
+                    ) : (
+                        <div className="markdown">
+                            <ReactMarkdown>{message.content}</ReactMarkdown>
+                        </div>
+                    )}
+
+                    <div className="flex items-center justify-between mt-1.5">
+                        <p className={`text-[10px] ${isUser ? (isFailed ? 'text-red-300' : 'text-gray-300') : 'text-gray-500'}`}>
+                            {new Date(message.timestamp || message.created_at || Date.now()).toLocaleTimeString([], {
+                                hour: '2-digit', minute: '2-digit'
+                            })}
+                        </p>
+                    </div>
+                </div>
+
+                {isFailed && onRetry && (
+                    <button
+                        onClick={() => onRetry(message.content)}
+                        className="self-end mt-1.5 flex items-center gap-1.5 text-xs text-red-400 hover:text-red-300 transition-colors font-medium bg-red-500/10 px-2.5 py-1 rounded-md border border-red-500/20"
+                    >
+                        <RefreshCcw size={10} /> Message failed - Click to retry
+                    </button>
+                )}
             </div>
         </motion.div>
     )

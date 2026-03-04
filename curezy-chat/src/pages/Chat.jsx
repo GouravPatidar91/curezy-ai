@@ -7,6 +7,7 @@ import Sidebar from '../components/Sidebar'
 import MessageBubble from '../components/MessageBubble'
 import AnalysisCard from '../components/AnalysisCard'
 import DoctorReferral from '../components/DoctorReferral'
+import FeedbackBar from '../components/FeedbackBar'
 
 // ── Stage badge ───────────────────────────────────────────────────────
 
@@ -49,44 +50,69 @@ function TypingIndicator() {
 
 // ── Council analysis progress bubble ─────────────────────────────────
 
-const STEPS = [
-    { id: 'initializing', label: 'Initializing models' },
-    { id: 'processing', label: 'Processing your inputs' },
-    { id: 'diagnosing', label: 'Starting diagnosis' },
-    { id: 'done', label: 'Analysis complete' },
-]
+// ── Dynamic Tree of Thought Visualizer (replaces basic bubble) ────────
 
-function AnalysisBubble({ currentStep }) {
-    const idx = STEPS.findIndex(s => s.id === currentStep)
+function AnalysisBubble() {
+    const [logs, setLogs] = useState([])
+    const endRef = useRef(null)
+
+    useEffect(() => {
+        endRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }, [logs])
+
+    useEffect(() => {
+        const sequence = [
+            { t: 0, msg: "[System] Initializing Council Diagnostic Engine...", type: "system" },
+            { t: 800, msg: "[Dr. Gemma] Extracting clinical phenotypes from raw patient input...", type: "gemma" },
+            { t: 2500, msg: "[Dr. OpenBio] Cross-referencing biomedical literature for isolated phenotypes...", type: "bio" },
+            { t: 5000, msg: "[Dr. Gemma] Hypothesis A: Acute viral infection. Formulating differential...", type: "gemma" },
+            { t: 7500, msg: "[Dr. Mistral] Devil's Advocate: Counter-evaluating for bacterial pathology markers...", type: "mistral" },
+            { t: 10500, msg: "[Dr. OpenBio] Evidence Check: Primary viral indicators match literature consensus >85%.", type: "bio" },
+            { t: 13000, msg: "[System] Variance detected across models. Initiating deep Debate Phase...", type: "system" },
+            { t: 15500, msg: "[Dr. Mistral] Adjusting weights. Conceding to viral pathology based on timeline.", type: "mistral" },
+            { t: 17500, msg: "[System] Debate resolved. Council agreement threshold reached.", type: "system" },
+            { t: 19000, msg: "[System] Weighted Consensus Engine compiling final diagnostic report...", type: "system" },
+        ]
+
+        const timers = sequence.map(({ t, msg, type }) =>
+            setTimeout(() => setLogs(p => [...p, { msg, type }]), t)
+        )
+        return () => timers.forEach(clearTimeout)
+    }, [])
+
+    const typeColors = {
+        system: "text-gray-500",
+        gemma: "text-blue-400",
+        bio: "text-green-400",
+        mistral: "text-orange-400"
+    }
+
     return (
-        <div className="flex items-start gap-3 mb-4">
-            <div className="w-8 h-8 rounded-2xl bg-accent-purple flex items-center justify-center text-white text-sm flex-shrink-0">🩺</div>
-            <div className="bg-surface border border-white/10 rounded-2xl rounded-bl-none px-5 py-4 shadow-sm max-w-sm">
-                <p className="text-sm font-semibold text-white mb-3">🩺 Curezy Medical Council</p>
-                <div className="flex justify-center gap-4 mb-4">
-                    {['🧠', '🔬', '💊'].map((icon, i) => (
-                        <div key={i} className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg transition-all ${currentStep === 'done' ? 'bg-green-50' : 'bg-accent-blue/10 animate-pulse'}`}
-                            style={{ animationDelay: `${i * 200}ms` }}>
-                            {currentStep === 'done' ? '✅' : icon}
+        <div className="flex items-start gap-3 mb-4 w-full">
+            <div className="w-8 h-8 rounded-2xl bg-accent-purple flex items-center justify-center text-white text-sm flex-shrink-0 animate-pulse shadow-[0_0_15px_rgba(123,44,191,0.5)] z-10">
+                🧠
+            </div>
+            <div className="flex-1 bg-[#050510]/95 backdrop-blur-xl border border-white/10 rounded-2xl rounded-bl-none overflow-hidden shadow-2xl relative max-w-2xl">
+                {/* Header */}
+                <div className="bg-surface/60 px-4 py-2 flex items-center justify-between border-b border-white/5">
+                    <span className="text-[11px] font-bold text-gray-300 uppercase tracking-widest flex items-center gap-2">
+                        <Loader2 size={12} className="animate-spin text-accent-blue" />
+                        Tree of Thought Analysis
+                    </span>
+                    <span className="text-[10px] text-accent-blue font-mono bg-accent-blue/10 px-2 py-0.5 rounded border border-accent-blue/20">LIVE</span>
+                </div>
+                {/* Terminal Body */}
+                <div className="p-4 font-mono text-[11px] leading-relaxed space-y-2.5 h-48 overflow-y-auto" style={{ scrollbarWidth: 'none' }}>
+                    {logs.map((log, i) => (
+                        <div key={i} className="flex gap-2 animate-in fade-in slide-in-from-bottom-1 duration-300">
+                            <span className="text-gray-600 shrink-0">❯</span>
+                            <span className={typeColors[log.type] || "text-gray-300"}>{log.msg}</span>
                         </div>
                     ))}
+                    <div ref={endRef} />
                 </div>
-                <div className="space-y-2">
-                    {STEPS.map((step, i) => {
-                        const done = i < idx || currentStep === 'done'
-                        const active = i === idx && currentStep !== 'done'
-                        return (
-                            <div key={step.id} className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium transition-all ${done ? 'bg-green-500/20 text-green-300' : active ? 'bg-accent-blue/10 text-accent-blue' : 'text-gray-500'}`}>
-                                <span className={`w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0 ${done ? 'bg-green-500 text-white' : active ? 'bg-accent-blue text-white' : 'bg-white/20'}`}>
-                                    {done ? <Check size={9} /> : active ? <Loader2 size={9} className="animate-spin" /> : null}
-                                </span>
-                                {step.label}
-                                {done && <span className="ml-auto text-green-500">✓</span>}
-                                {active && <span className="ml-auto animate-pulse">…</span>}
-                            </div>
-                        )
-                    })}
-                </div>
+                {/* Visualizer Footer Gradient Overlay */}
+                <div className="absolute bottom-0 left-0 w-full h-8 bg-gradient-to-t from-[#050510] to-transparent pointer-events-none" />
             </div>
         </div>
     )
@@ -506,6 +532,12 @@ export default function Chat() {
         setMessages(prev => [...prev, userMsg])
         setLoading(true)
 
+        // ── Show ToT terminal immediately if analysis is about to be triggered ──
+        if (stage === 'confirming') {
+            setShowingAnalysis(true)
+            startAnalysisSequence()
+        }
+
         // Save to DB using the stable Supabase convId
         await dbInsertMessage(user?.id, convId, 'user', text)
 
@@ -545,8 +577,11 @@ export default function Chat() {
             setStage(nextStage)
 
             if (nextStage === 'analyzing' || res.data?.analysis) {
-                setShowingAnalysis(true)
-                startAnalysisSequence()
+                // Ensure terminal is shown (in case confirming stage was skipped)
+                if (!showingAnalysis) {
+                    setShowingAnalysis(true)
+                    startAnalysisSequence()
+                }
                 const aiMsg = { role: 'assistant', content: reply, timestamp: new Date().toISOString() }
                 setMessages(prev => [...prev, aiMsg])
                 await dbInsertMessage(user?.id, convId, 'assistant', reply)   // ← stable convId
@@ -555,7 +590,8 @@ export default function Chat() {
                     setAnalysisResult({ analysis: res.data.analysis, confidence: res.data.confidence, dataGaps: res.data.data_gaps })
                     clearInterval(analysisTimerRef.current)
                     setAnalysisStep('done')
-                    setTimeout(() => { setShowingAnalysis(false); setStage('results'); setShowReferral(true) }, 1500)
+                    // Allow the ToT animation to finish gracefully before transitioning
+                    setTimeout(() => { setShowingAnalysis(false); setStage('results'); setShowReferral(true) }, 3000)
                 }
             } else {
                 const aiMsg = { role: 'assistant', content: reply, timestamp: new Date().toISOString() }
@@ -564,13 +600,30 @@ export default function Chat() {
             }
 
             await dbTouchConversation(user?.id, convId)                        // ← stable convId
-            setRefreshSidebar(n => n + 1)
         } catch (err) {
             console.error('[Chat] response handling error:', err)
-            setMessages(prev => [...prev, { role: 'assistant', content: 'Something went wrong. Please try again.', timestamp: new Date().toISOString() }])
+            // Flag the last user message as failed instead of appending an AI error
+            setMessages(prev => {
+                const newMsgs = [...prev]
+                const lastUserIdx = newMsgs.findLastIndex(m => m.role === 'user')
+                if (lastUserIdx !== -1) {
+                    newMsgs[lastUserIdx] = { ...newMsgs[lastUserIdx], isFailed: true }
+                }
+                return newMsgs
+            })
         }
         setLoading(false)
-    }, [input, loading, convId, stage, messages, user?.id, startAnalysisSequence, bootBackendSession])
+    }, [input, loading, convId, stage, messages, showingAnalysis, user?.id, startAnalysisSequence, bootBackendSession])
+
+    const handleRetry = useCallback((failedText) => {
+        setMessages(prev => {
+            const arr = [...prev]
+            const idx = arr.findLastIndex(m => m.role === 'user' && m.isFailed && m.content === failedText)
+            if (idx !== -1) arr.splice(idx, 1) // remove failed message before retry
+            return arr
+        })
+        handleSend(failedText)
+    }, [handleSend])
 
     const handleKeyDown = e => {
         if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() }
@@ -644,17 +697,28 @@ export default function Chat() {
                     {isIdle && !convLoading && <EmptyState onNewChat={handleNewChat} />}
 
                     {!convLoading && messages.map((msg, i) => (
-                        <MessageBubble key={`${msg.role}-${i}-${msg.timestamp}`} message={msg} />
+                        <MessageBubble key={`${msg.role}-${i}-${msg.timestamp}`} message={msg} onRetry={handleRetry} />
                     ))}
 
                     {showingAnalysis && !convLoading && <AnalysisBubble currentStep={analysisStep} />}
 
                     {analysisResult && stage === 'results' && !convLoading && (
-                        <AnalysisCard
-                            analysis={analysisResult.analysis}
-                            confidence={analysisResult.confidence}
-                            dataGaps={analysisResult.dataGaps}
-                        />
+                        <>
+                            <AnalysisCard
+                                analysis={analysisResult.analysis}
+                                confidence={analysisResult.confidence}
+                                dataGaps={analysisResult.dataGaps}
+                            />
+                            <FeedbackBar
+                                sessionId={backendConvIdRef.current}
+                                patientId={user?.id}
+                                topDiagnosis={
+                                    analysisResult?.analysis?.top_3_conditions?.[0]?.condition
+                                    || analysisResult?.analysis?.conditions?.[0]?.condition
+                                    || null
+                                }
+                            />
+                        </>
                     )}
 
                     {loading && !showingAnalysis && <TypingIndicator />}

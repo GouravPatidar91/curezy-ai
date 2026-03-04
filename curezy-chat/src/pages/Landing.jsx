@@ -140,7 +140,7 @@ export default function Landing() {
                 </motion.div>
 
                 <button
-                    onClick={() => setShowWaitlist(true)}
+                    onClick={() => { setShowAuth(true); setIsLogin(false); }}
                     className="relative px-6 py-2.5 rounded-full overflow-hidden font-semibold text-sm transition-all hover:scale-105 border border-white/10 bg-white/5 hover:bg-white/10 pointer-events-auto"
                 >
                     <span className="relative flex items-center gap-2">
@@ -298,7 +298,7 @@ export default function Landing() {
                         </div>
                         <p className="text-gray-400 mb-8 max-w-sm">Medicine for the future. Diagnosing complexities at the speed of thought.</p>
                         <button
-                            onClick={() => setShowWaitlist(true)}
+                            onClick={() => { setShowAuth(true); setIsLogin(false); }}
                             className="px-6 py-2.5 rounded-full bg-white text-black font-semibold text-sm hover:scale-105 transition-transform"
                         >
                             Get Started

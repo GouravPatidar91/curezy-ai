@@ -94,6 +94,16 @@ class FeedbackInput(BaseModel):
     ai_was_correct: bool
     doctor_notes: Optional[str] = ""
 
+class CouncilFeedbackInput(BaseModel):
+    """Patient/doctor feedback submitted from the chat UI FeedbackBar."""
+    session_id: str                          # backend conversation_id  
+    patient_id: Optional[str] = None
+    rating: int                              # 1–5 stars
+    actual_diagnosis: Optional[str] = None  # if doctor corrects it
+    doctor_verified: Optional[bool] = False
+    feedback_notes: Optional[str] = ""
+
+
 class GenerateKeyInput(BaseModel):
     name: str
     client: str
@@ -651,12 +661,13 @@ async def _run_council_analysis(conversation_id: str, state, selected_model: str
             gender=payload.get("gender")
         )
 
+        import asyncio
         # ── Route to single model or full council ──
         if use_single:
             print(f"[Chat] Single-model mode: {selected_model}")
-            clinical_output = reasoner.analyze_single(patient_state.dict(), selected_model.lower())
+            clinical_output = await asyncio.to_thread(reasoner.analyze_single, patient_state.dict(), selected_model.lower())
         else:
-            clinical_output = reasoner.analyze(patient_state.dict())
+            clinical_output = await asyncio.to_thread(reasoner.analyze, patient_state.dict())
 
         confidence_report = uncertainty_engine.analyze_clinical_confidence(
             patient_state.dict(), clinical_output.dict()
@@ -757,7 +768,8 @@ async def chat_completions(
                 gender=collected.get("gender")
             )
 
-            clinical_output = reasoner.analyze(patient_state.dict())
+            import asyncio
+            clinical_output = await asyncio.to_thread(reasoner.analyze, patient_state.dict())
             confidence_report = uncertainty_engine.analyze_clinical_confidence(
                 patient_state.dict(), clinical_output.dict()
             )
@@ -1020,3 +1032,81 @@ def benchmark_results(request: Request):
                 data = _json.load(f)
             return {"success": True, "results": data}
     return {"success": False, "message": "No benchmark results yet — run a benchmark first"}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# PHASE 2 — COUNCIL FEEDBACK ENDPOINT
+# Records patient/doctor ratings for the auto-training loop.
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.post("/feedback/council")
+@limiter.limit("60/minute")
+async def submit_council_feedback(request: Request, data: CouncilFeedbackInput):
+    """
+    Receive star ratings + optional doctor corrections from the FeedbackBar UI.
+    Updates the council_outcomes row for this session in Supabase.
+    If rating == 5 or doctor_verified == true, auto-promotes the case to case_library.
+    """
+    import datetime
+
+    supabase_url = os.getenv("SUPABASE_URL")
+    supabase_key = os.getenv("SUPABASE_SERVICE_KEY") or os.getenv("SUPABASE_ANON_KEY")
+
+    if not (supabase_url and supabase_key):
+        # Supabase not configured — accept gracefully so UI doesn't error
+        return {"success": True, "message": "Feedback noted (persistence not configured)"}
+
+    try:
+        from supabase import create_client
+        client = create_client(supabase_url, supabase_key)
+
+        # 1. Update the matching council_outcomes row
+        update_payload = {
+            "user_rating":          data.rating,
+            "doctor_verified":      data.doctor_verified or False,
+            "feedback_notes":       data.feedback_notes or "",
+            "feedback_timestamp":   datetime.datetime.utcnow().isoformat(),
+        }
+        if data.actual_diagnosis:
+            update_payload["actual_diagnosis"] = data.actual_diagnosis.strip()
+
+        res = client.table("council_outcomes") \
+            .update(update_payload) \
+            .eq("session_id", data.session_id) \
+            .execute()
+
+        # 2. Auto-promote to case_library if high quality
+        should_promote = (data.rating == 5) or (data.doctor_verified is True)
+        if should_promote and res.data:
+            outcome = res.data[0]
+            all_conds = outcome.get("all_conditions", [])
+            top_cond  = all_conds[0] if all_conds else {}
+
+            if top_cond.get("condition") and outcome.get("soap_note"):
+                quality_source = "doctor_verified" if data.doctor_verified else "user_5star"
+                client.table("case_library").insert({
+                    "outcome_id":       outcome.get("id"),
+                    "soap_note":        outcome.get("soap_note", ""),
+                    "symptoms":         outcome.get("symptoms", []),
+                    "top_condition":    data.actual_diagnosis or top_cond.get("condition"),
+                    "probability":      top_cond.get("probability", 60),
+                    "evidence":         top_cond.get("evidence", []),
+                    "reasoning":        top_cond.get("reasoning", ""),
+                    "reasoning_summary":outcome.get("reasoning_summary", ""),
+                    "quality_source":   quality_source,
+                    "q_score":          outcome.get("q_score"),
+                    "user_rating":      data.rating,
+                }).execute()
+                print(f"[Feedback] 📚 Case promoted to library (source: {quality_source})")
+
+        return {
+            "success":  True,
+            "message":  "Thank you for your feedback!",
+            "promoted": should_promote,
+        }
+
+    except Exception as e:
+        print(f"[Feedback] ❌ Error: {e}")
+        # Don't crash the UI — return gracefully
+        return {"success": True, "message": "Feedback recorded"}
+

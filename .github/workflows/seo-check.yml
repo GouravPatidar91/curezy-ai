@@ -1,0 +1,47 @@
+name: SEO and build Check
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build_and_check_seo:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Use Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18.x'
+        cache: 'npm'
+        cache-dependency-path: curezy-chat/package-lock.json
+
+    - name: Install dependencies
+      run: |
+        cd curezy-chat
+        npm ci
+
+    - name: Build Project
+      run: |
+        cd curezy-chat
+        npm run build
+
+    - name: Check SEO files existence
+      run: |
+        cd curezy-chat/build
+        if [ ! -f "robots.txt" ]; then echo "robots.txt missing!"; exit 1; fi
+        if [ ! -f "sitemap.xml" ]; then echo "sitemap.xml missing!"; exit 1; fi
+        echo "robots.txt and sitemap.xml exist."
+
+    - name: Check Meta Tags existence in index.html
+      run: |
+        cd curezy-chat/build
+        if ! grep -q "Curezy AI" index.html; then echo "Title missing!"; exit 1; fi
+        if ! grep -q "gtag" index.html; then echo "GA4 script missing!"; exit 1; fi
+        if ! grep -q "google-site-verification" index.html; then echo "Google verification missing!"; exit 1; fi
+        if ! grep -q "msvalidate.01" index.html; then echo "Bing verification missing!"; exit 1; fi
+        echo "Vital meta tags and scripts exist."
