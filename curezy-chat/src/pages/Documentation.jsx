@@ -27,7 +27,7 @@ export default function Documentation() {
                 </p>
 
                 <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-                    <a href="mailto:admin@curezy.com" className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 bg-[#4D4DFF] hover:bg-[#3b3bdf] text-white rounded-xl font-medium transition-colors">
+                    <a href="mailto:admin@curezy.in" className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 bg-[#4D4DFF] hover:bg-[#3b3bdf] text-white rounded-xl font-medium transition-colors">
                         <Mail className="w-4 h-4" />
                         Contact Admin
                     </a>
