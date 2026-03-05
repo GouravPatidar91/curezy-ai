@@ -678,9 +678,9 @@ def start_bench_async(mode: str = "quick") -> str:
 class CouncilBenchmark:
 
     COUNCIL = [
-        {"name": "Dr. Gemma",   "model": "alibayram/medgemma:4b",             "weight": 1.5, "specialty": "General Medicine"},
-        {"name": "Dr. OpenBio", "model": "koesn/llama3-openbiollm-8b:latest", "weight": 1.4, "specialty": "Biomedical Research"},
-        {"name": "Dr. Mistral", "model": "mistral:7b",                         "weight": 1.2, "specialty": "Differential Diagnosis"},
+        {"name": "Curezy AURIX", "model": "alibayram/medgemma:4b",             "weight": 1.5, "specialty": "General Medicine"},
+        {"name": "Curezy AURA",  "model": "koesn/llama3-openbiollm-8b:latest", "weight": 1.4, "specialty": "Biomedical Research"},
+        {"name": "Curezy AURIS", "model": "mistral:7b",                         "weight": 1.2, "specialty": "Differential Diagnosis"},
     ]
 
     # â”€â”€ Step 1 prompt: each doctor answers the MCQ independently â”€â”€
@@ -1227,9 +1227,9 @@ Your debate response:"""
                 rd["id"], rd["source"], rd["category"], rd["difficulty"],
                 rd["correct_ans"], rd["council_ans"],
                 "âœ… Correct" if rd["council_correct"] else "âŒ Wrong",
-                vr1.get("Dr. Gemma","?"),
-                vr1.get("Dr. OpenBio","?"),
-                vr1.get("Dr. Mistral","?"),
+                vr1.get("Curezy AURIX","?"),
+                vr1.get("Curezy AURA","?"),
+                vr1.get("Curezy AURIS","?"),
                 "ðŸ”„ Yes" if changed else "â€“",
             ]
             for j, v in enumerate(row_vals, 1):

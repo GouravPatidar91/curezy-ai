@@ -163,10 +163,15 @@ class OutputValidator:
 # COUNCIL MEMBERS
 # ─────────────────────────────────────────
 
+# ── Curezy Council Brand Names ────────────────────────────────────────────────
+# AURIX  = most powerful model  (Primary Diagnostician,  weight 1.5)
+# AURA   = main balanced model  (Evidence Validator,     weight 1.4)
+# AURIS  = fast lightweight     (Devil's Advocate,       weight 1.2)
+# AURANET = the full council system
 COUNCIL = [
-    {"name":"Dr. Gemma",  "model":"alibayram/medgemma:4b",            "specialty":"General Medicine",   "role":"Primary Diagnostician", "weight":1.5, "tokens":2048},
-    {"name":"Dr. OpenBio","model":"koesn/llama3-openbiollm-8b:latest", "specialty":"Biomedical Research","role":"Evidence Validator",    "weight":1.4, "tokens":2048},
-    {"name":"Dr. Mistral","model":"mistral:7b",                        "specialty":"Differential Diagnosis","role":"Devil's Advocate",  "weight":1.2, "tokens":1536},
+    {"name":"Curezy AURIX", "model":"alibayram/medgemma:4b",            "specialty":"General Medicine",      "role":"Primary Diagnostician", "weight":1.5, "tokens":2048},
+    {"name":"Curezy AURA",  "model":"koesn/llama3-openbiollm-8b:latest","specialty":"Biomedical Research",    "role":"Evidence Validator",    "weight":1.4, "tokens":2048},
+    {"name":"Curezy AURIS", "model":"mistral:7b",                        "specialty":"Differential Diagnosis","role":"Devil's Advocate",      "weight":1.2, "tokens":1536},
 ]
 
 
@@ -273,12 +278,12 @@ S: Chief complaint: fever 39.5°C, neck stiffness, severe headache, photophobia 
 O: Age 28, Female. Labs: none provided.
 C: PMH: none. Meds: none. Risk factors: none.
 
-Dr. Gemma's clinical reasoning:
+Curezy AURIX's clinical reasoning:
 Step 1: Fever + neck stiffness + headache = classic meningeal irritation triad. Photophobia reinforces meningeal inflammation.
 Step 2: Sudden onset <24h = bacterial time course (viral is typically slower). Young adult with no prior illness.
 Step 3: Viral Meningitis remains a differential but bacterial probability is higher given the acuity.
 
-{"doctor":"Dr. Gemma","specialty":"General Medicine","conditions":[{"condition":"Bacterial Meningitis","probability":65,"confidence":78,"evidence":["Meningeal triad: fever 39.5°C + neck stiffness + photophobia","Sudden onset <24h consistent with bacterial time course","Young female without prior immunocompromise"],"reasoning":"Classic bacterial meningitis triad with acute onset. LP + IV antibiotics within 1 hour."},{"condition":"Viral Meningitis","probability":25,"confidence":55,"evidence":["Fever + headache + photophobia also seen in viral","Absence of petechial rash (slightly against bacterial)"],"reasoning":"Cannot exclude viral without CSF analysis. Typically less acute onset."},{"condition":"Subarachnoid Hemorrhage","probability":10,"confidence":40,"evidence":["Sudden severe headache warrants CT before LP","Photophobia can occur in SAH"],"reasoning":"Must rule out with CT before LP given presentation severity."}],"missing_data":["Lumbar puncture (CSF analysis)","CT head (before LP)","Blood cultures","Kernig/Brudzinski sign exam"],"urgent_flags":["EMERGENCY: LP + IV broad-spectrum antibiotics within 1 hour"],"reasoning_summary":"Acute meningeal triad in young adult. Bacterial meningitis is primary until LP excludes it. Treat immediately."}
+{"doctor":"Curezy AURIX","specialty":"General Medicine","conditions":[{"condition":"Bacterial Meningitis","probability":65,"confidence":78,"evidence":["Meningeal triad: fever 39.5°C + neck stiffness + photophobia","Sudden onset <24h consistent with bacterial time course","Young female without prior immunocompromise"],"reasoning":"Classic bacterial meningitis triad with acute onset. LP + IV antibiotics within 1 hour."},{"condition":"Viral Meningitis","probability":25,"confidence":55,"evidence":["Fever + headache + photophobia also seen in viral","Absence of petechial rash (slightly against bacterial)"],"reasoning":"Cannot exclude viral without CSF analysis. Typically less acute onset."},{"condition":"Subarachnoid Hemorrhage","probability":10,"confidence":40,"evidence":["Sudden severe headache warrants CT before LP","Photophobia can occur in SAH"],"reasoning":"Must rule out with CT before LP given presentation severity."}],"missing_data":["Lumbar puncture (CSF analysis)","CT head (before LP)","Blood cultures","Kernig/Brudzinski sign exam"],"urgent_flags":["EMERGENCY: LP + IV broad-spectrum antibiotics within 1 hour"],"reasoning_summary":"Acute meningeal triad in young adult. Bacterial meningitis is primary until LP excludes it. Treat immediately."}
 
 === WORKED EXAMPLE B ===
 Patient SOAP:
@@ -286,12 +291,12 @@ S: Chief complaint: chest pain radiating to left arm, sweating, nausea | Duratio
 O: Age 55, Male. Labs: none provided.
 C: PMH: hypertension. Meds: amlodipine. Risk factors: hypertension, male.
 
-Dr. Mistral's clinical reasoning:
+Curezy AURIS's clinical reasoning:
 Step 1: Chest pain + left arm radiation + diaphoresis = ACS triad. Duration 30 min exceeds typical angina (<10 min).
 Step 2: Male 55yo hypertensive = high Framingham cardiac risk. Amlodipine use confirms pre-existing cardiac workup.
 Step 3: Must distinguish STEMI from NSTEMI — ECG critical. Aortic dissection must be excluded.
 
-{"doctor":"Dr. Mistral","specialty":"Differential Diagnosis","conditions":[{"condition":"Acute Myocardial Infarction","probability":72,"confidence":82,"evidence":["Left arm radiation — classic ACS referred pain pattern","Diaphoresis (sympathetic activation) — ACS marker","Duration >30 min beyond typical angina threshold","Male 55yo hypertensive — high Framingham cardiac risk"],"reasoning":"Classic STEMI/NSTEMI presentation. Immediate 12-lead ECG + cath lab activation."},{"condition":"Unstable Angina","probability":20,"confidence":60,"evidence":["Chest pain pattern consistent","No ST elevation data available to confirm MI"],"reasoning":"Cannot distinguish from NSTEMI without troponin. Treat as ACS protocol."},{"condition":"Aortic Dissection","probability":8,"confidence":40,"evidence":["Acute severe chest pain","Hypertension — dissection risk factor"],"reasoning":"Must exclude with bilateral BP measurement and CT-angiogram if dissection suspected."}],"missing_data":["12-lead ECG urgent","Troponin I/T serials","Bilateral BP measurement","CXR"],"urgent_flags":["EMERGENCY: Activate cath lab — PCI within 90 minutes"],"reasoning_summary":"High-probability ACS in hypertensive male. Immediate ECG, cath lab activation, aspirin 300mg."}
+{"doctor":"Curezy AURIS","specialty":"Differential Diagnosis","conditions":[{"condition":"Acute Myocardial Infarction","probability":72,"confidence":82,"evidence":["Left arm radiation — classic ACS referred pain pattern","Diaphoresis (sympathetic activation) — ACS marker","Duration >30 min beyond typical angina threshold","Male 55yo hypertensive — high Framingham cardiac risk"],"reasoning":"Classic STEMI/NSTEMI presentation. Immediate 12-lead ECG + cath lab activation."},{"condition":"Unstable Angina","probability":20,"confidence":60,"evidence":["Chest pain pattern consistent","No ST elevation data available to confirm MI"],"reasoning":"Cannot distinguish from NSTEMI without troponin. Treat as ACS protocol."},{"condition":"Aortic Dissection","probability":8,"confidence":40,"evidence":["Acute severe chest pain","Hypertension — dissection risk factor"],"reasoning":"Must exclude with bilateral BP measurement and CT-angiogram if dissection suspected."}],"missing_data":["12-lead ECG urgent","Troponin I/T serials","Bilateral BP measurement","CXR"],"urgent_flags":["EMERGENCY: Activate cath lab — PCI within 90 minutes"],"reasoning_summary":"High-probability ACS in hypertensive male. Immediate ECG, cath lab activation, aspirin 300mg."}
 """
 
     def diagnosis_prompt(self, soap: dict, doctor: dict) -> str:
@@ -727,7 +732,7 @@ class ClinicalReasoner:
     def _run_doctor(self, doctor, soap, patient_state): return asyncio.run(self._run_doctor_async(doctor, soap, patient_state))
     def _run_debate(self, doctor, soap, all_outputs):   return asyncio.run(self._run_debate_async(doctor, soap, all_outputs))
 
-    MODEL_KEY_MAP = {"medgemma":"Dr. Gemma", "openbiollm":"Dr. OpenBio", "mistral":"Dr. Mistral"}
+    MODEL_KEY_MAP = {"medgemma":"Curezy AURIX", "openbiollm":"Curezy AURA", "mistral":"Curezy AURIS"}
 
     def analyze_single(self, patient_state: dict, model_key: str) -> FinalClinicalOutput:
         pid   = patient_state.get("patient_id","unknown")

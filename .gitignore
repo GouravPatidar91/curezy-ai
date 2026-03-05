@@ -1,14 +1,77 @@
-node_modules/
+# ── Python ────────────────────────────────────────────────────────────────────
 __pycache__/
-.env
-.ipynb_checkpoints
-.pytest_cache
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg
+
+# ── Virtual environments ───────────────────────────────────────────────────────
 venv/
 env/
-.DS_Store
+.venv/
+ai-service/venv/
+curezy-chat/node_modules/
+
+# ── Secrets & environment ──────────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+secrets/
+
+# ── ML Model weights (too large for GitHub) ────────────────────────────────────
+ai-service/.models/
+ai-service/models/
+ai-service/MedSAM/
+*.gguf
+*.safetensors
+*.bin
+*.pt
+*.pth
+*.ckpt
+*.h5
+
+# ── Fine-tuning outputs ────────────────────────────────────────────────────────
+ai-service/finetune/adapters/
+ai-service/finetune/gguf/
+ai-service/finetune/datasets/*.jsonl
+
+# ── Logs & temp files ─────────────────────────────────────────────────────────
+*.log
+*.logs
+ai-service/.tmp/
+ai-service/temp_uploads/
+ai-service/audit_fallback/
+medsam_install.log
+medsam_local_install.log
+
+# ── Build outputs ──────────────────────────────────────────────────────────────
 dist/
 build/
-*.pyc
+curezy-chat/build/
 
-# ML Models too large for GitHub
-ai-service/.models/
+# ── IDE & OS ───────────────────────────────────────────────────────────────────
+.DS_Store
+.vscode/
+.idea/
+Thumbs.db
+*.swp
+*.swo
+
+# ── Jupyter ────────────────────────────────────────────────────────────────────
+.ipynb_checkpoints/
+*.ipynb
+
+# ── Database files ─────────────────────────────────────────────────────────────
+*.db
+*.sqlite
+*.sqlite3
+
+# ── Benchmark output (regenerated on run) ─────────────────────────────────────
+ai-service/benchmark_report.xlsx
+ai-service/benchmark_results.json

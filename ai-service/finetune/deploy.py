@@ -15,11 +15,11 @@ from typing import Dict, Optional, Callable
 # Fine-tuned model name prefix
 FT_PREFIX = "curezy"
 
-# Map from doctor name to new Ollama model name
+# Map from Curezy brand name to fine-tuned Ollama model name
 DOCTOR_TO_FT_MODEL = {
-    "Dr. Gemma":   "curezy-gemma-ft",
-    "Dr. OpenBio": "curezy-openbiollm-ft",
-    "Dr. Mistral": "curezy-mistral-ft",
+    "Curezy AURIX": "curezy-aurix-ft",
+    "Curezy AURA":  "curezy-aura-ft",
+    "Curezy AURIS": "curezy-auris-ft",
 }
 
 REASONER_PATH = Path(__file__).parent.parent / "agents" / "clinical_reasoner.py"
@@ -106,9 +106,9 @@ class OllamaDeploy:
     def _create_modelfile(self, gguf_path: Path, doctor_name: str) -> str:
         """Generate Ollama Modelfile content for a fine-tuned model."""
         specialty_map = {
-            "Dr. Gemma":   "General Medicine and Primary Care",
-            "Dr. OpenBio": "Biomedical Research and Evidence-Based Medicine",
-            "Dr. Mistral": "Differential Diagnosis and Clinical Reasoning",
+            "Curezy AURIX": "General Medicine and Primary Care",
+            "Curezy AURA":  "Biomedical Research and Evidence-Based Medicine",
+            "Curezy AURIS": "Differential Diagnosis and Clinical Reasoning",
         }
         specialty = specialty_map.get(doctor_name, "Medical Diagnosis")
 
