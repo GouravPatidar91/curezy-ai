@@ -679,6 +679,7 @@ async def _run_council_analysis(conversation_id: str, state, selected_model: str
     payload = conversation_manager.build_analysis_payload(conversation_id)
     conversation_manager.update_stage(conversation_id, IntakeStage.ANALYZING)
 
+    try:
         from utils.runpod_client import RunpodClient
         rpc = RunpodClient()
 
