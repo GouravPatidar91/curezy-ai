@@ -19,6 +19,25 @@ class RunpodClient:
                 "Content-Type": "application/json"
             }
 
+    def _extract_output(self, result):
+        # Shape A: direct, B: success/analysis, C: array, D: double wrapped
+        output = result.get("output")
+        if not output: return None
+        
+        if isinstance(output, dict) and "output" in output and isinstance(output["output"], dict):
+            output = output["output"]
+            
+        if isinstance(output, list) and len(output) > 0 and isinstance(output[0], dict):
+            output = output[0]
+            
+        return output
+
+    def _is_valid_output(self, output):
+        if not output or not isinstance(output, dict): return False
+        if "analysis" in output or "clinical_analysis" in output: return True
+        if "top_3_conditions" in output or "conditions" in output: return True
+        return output.get("success") is True
+
     async def run_council_analysis(self, patient_state: dict, mode: str = "council", model_key: str = None) -> dict:
         """
         Sends the exact patient state to RunPod, which runs Preprocessing, 
@@ -44,11 +63,12 @@ class RunpodClient:
             job_id = result.get("id")
             
             # If it's already done (hot start)
-            if result.get("status") == "COMPLETED" and result.get("output", {}).get("success"):
-                return result["output"]
+            output = self._extract_output(result)
+            if result.get("status") == "COMPLETED" and self._is_valid_output(output):
+                return output
                 
             # If we need to wait / poll (cold start or long inference)
-            if result.get("status") == "IN_PROGRESS" or result.get("status") == "IN_QUEUE":
+            if result.get("status") in ["IN_PROGRESS", "IN_QUEUE"]:
                 import asyncio
                 status_url = f"https://api.runpod.ai/v2/{self.endpoint_id}/status/{job_id}"
                 
@@ -63,9 +83,10 @@ class RunpodClient:
                     status = poll_data.get("status")
                     
                     if status == "COMPLETED":
-                        if poll_data.get("output", {}).get("success"):
+                        poll_out = self._extract_output(poll_data)
+                        if self._is_valid_output(poll_out):
                             print(f"[RunPodClient] Job {job_id} Completed!")
-                            return poll_data["output"]
+                            return poll_out
                         else:
                             raise RuntimeError(f"RunPod execution failed internally: {poll_data}")
                     elif status == "FAILED":

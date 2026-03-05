@@ -376,6 +376,19 @@ async function dbTouchConversation(userId, convId) {
         .eq('conversation_id', convId).eq('user_id', userId)
 }
 
+// ── Normalize Analysis Output ─────────────────────────────────────────
+
+function normalizeAnalysis(data) {
+    if (!data) return null;
+    if (data.top_3_conditions) return data;
+    if (data.analysis && data.analysis.top_3_conditions) return data.analysis;
+    if (data.conditions) return { top_3_conditions: data.conditions, ...data };
+    if (data.analysis && data.analysis.conditions) return { top_3_conditions: data.analysis.conditions, ...data.analysis };
+    // fallback
+    if (data.analysis) return data.analysis;
+    return null;
+}
+
 // ── Main Chat component ───────────────────────────────────────────────
 
 export default function Chat() {
@@ -572,11 +585,19 @@ export default function Chat() {
 
         try {
             const reply = res.data?.message || 'Sorry, I could not process that.'
-            const nextStage = res.data?.stage || stage
 
+            // BUGFIX: Check if RunPod failed gracefully with success: false
+            if (res.data?.success === false) {
+                throw new Error(reply); // Jumps to catch block to mark as failed
+            }
+
+            const nextStage = res.data?.stage || stage
             setStage(nextStage)
 
-            if (nextStage === 'analyzing' || res.data?.analysis) {
+            // BUGFIX: Handle all 4 shapes of analysis payloads
+            const normAnalysis = normalizeAnalysis(res.data)
+
+            if (nextStage === 'analyzing' || normAnalysis) {
                 // Ensure terminal is shown (in case confirming stage was skipped)
                 if (!showingAnalysis) {
                     setShowingAnalysis(true)
@@ -586,8 +607,8 @@ export default function Chat() {
                 setMessages(prev => [...prev, aiMsg])
                 await dbInsertMessage(user?.id, convId, 'assistant', reply)   // ← stable convId
 
-                if (res.data?.analysis) {
-                    setAnalysisResult({ analysis: res.data.analysis, confidence: res.data.confidence, dataGaps: res.data.data_gaps })
+                if (normAnalysis) {
+                    setAnalysisResult({ analysis: normAnalysis, confidence: res.data.confidence, dataGaps: res.data.data_gaps })
                     clearInterval(analysisTimerRef.current)
                     setAnalysisStep('done')
                     // Allow the ToT animation to finish gracefully before transitioning
