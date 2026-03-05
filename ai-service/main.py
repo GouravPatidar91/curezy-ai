@@ -26,6 +26,10 @@ from finetune.pipeline import start_pipeline, get_job, list_jobs
 from finetune.deploy import OllamaDeploy
 from utils.email_service import EmailService
 import logging
+import base64 # Added for X-ray analysis RunPod forwarding
+import numpy as np # Added for X-ray analysis RunPod forwarding
+from io import BytesIO # Added for X-ray analysis RunPod forwarding
+import urllib.request # Added for X-ray analysis RunPod forwarding
 
 
 class EndpointFilter(logging.Filter):
@@ -377,7 +381,22 @@ async def analyze_xray(
         with open(temp_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
 
-        result = xray_analyzer.analyze(temp_path)
+        from utils.runpod_client import RunpodClient
+        rpc = RunpodClient()
+
+        if rpc.is_configured:
+            print("[XRay] ☁️ Forwarding image to RunPod GPU...")
+            # We need to send the image as base64 in the JSON payload
+            with open(temp_path, "rb") as bf:
+                img_b64 = base64.b64encode(bf.read()).decode()
+            
+            result = await rpc.run_council_analysis(
+                patient_state={"image_base64": img_b64},
+                mode="xray"
+            )
+        else:
+            print("[XRay] 💻 Running local analysis (Warning: resource intensive)...")
+            result = xray_analyzer.analyze(temp_path)
 
         if os.path.exists(temp_path):
             os.remove(temp_path)
@@ -612,7 +631,19 @@ async def upload_report(
     # — Medical Image: analyzer —
     else:
         try:
-            findings = xray_analyzer.analyze(save_path)
+            from utils.runpod_client import RunpodClient
+            rpc = RunpodClient()
+            if rpc.is_configured:
+                print("[XRay] ☁️ Forwarding image from doc-flow to RunPod GPU...")
+                with open(save_path, "rb") as bf:
+                    img_b64 = base64.b64encode(bf.read()).decode()
+                findings = await rpc.run_council_analysis(
+                    patient_state={"image_base64": img_b64},
+                    mode="xray"
+                )
+            else:
+                print("[XRay] 💻 Running local analysis for doc-flow...")
+                findings = xray_analyzer.analyze(save_path)
         except Exception as e:
             findings = {"success": False, "error": str(e)}
 

@@ -1,19 +1,25 @@
 import os
-import cv2
 import numpy as np
-import torch
-import torch.nn as nn
-from torchvision import models, transforms
-from PIL import Image
-from typing import Optional
 import base64
 from io import BytesIO
-import torchxrayvision as xrv
+from typing import Optional
 import urllib.request
+
+# Optional heavy medical imaging dependencies for Render compatibility
+try:
+    import cv2
+    import torch
+    import torch.nn as nn
+    from torchvision import models, transforms
+    from PIL import Image
+    import torchxrayvision as xrv
+except ImportError:
+    cv2, torch, nn, models, transforms, Image, xrv = [None] * 7
+
 try:
     from segment_anything import sam_model_registry, SamPredictor
 except ImportError:
-    pass  # We will handle this gracefully if not installed
+    sam_model_registry, SamPredictor = None, None
 
 
 # ─────────────────────────────────────────
@@ -66,6 +72,11 @@ class GradCAM:
 
 class ChestXRayAnalyzer:
     def __init__(self):
+        self.is_ready = all(x is not None for x in [torch, xrv, cv2, Image])
+        if not self.is_ready:
+            print("[XRayAnalyzer] ⚠️ Missing heavy dependencies (torch/xrv/cv2). Local analysis disabled.")
+            return
+
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.classes = xrv.datasets.default_pathologies
         self.model = self._load_model()

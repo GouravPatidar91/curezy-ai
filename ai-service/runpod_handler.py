@@ -14,10 +14,11 @@ import traceback
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 # ── Lazy globals (loaded on first request) ────────────────────────────────────
-_initialized   = False
-_preprocessor  = None
-_reasoner      = None
-_uncertainty   = None
+_initialized    = False
+_preprocessor   = None
+_reasoner       = None
+_uncertainty    = None
+_xray_analyzer  = None
 
 
 def _init():
@@ -44,10 +45,12 @@ def _init():
         from preprocessing.patient_preprocessor import PatientPreprocessor
         from agents.clinical_reasoner import ClinicalReasoner
         from confidence.uncertainty_engine import UncertaintyEngine
+        from imaging.xray_analyzer import ChestXRayAnalyzer
 
-        _preprocessor = PatientPreprocessor()
-        _reasoner     = ClinicalReasoner()
-        _uncertainty  = UncertaintyEngine()
+        _preprocessor   = PatientPreprocessor()
+        _reasoner       = ClinicalReasoner()
+        _uncertainty    = UncertaintyEngine()
+        _xray_analyzer  = ChestXRayAnalyzer()
         print("[Curezy] ✅ All services loaded")
     except Exception as e:
         print(f"[Curezy] ❌ Service load error: {e}")
@@ -137,6 +140,27 @@ def handler(job: dict) -> dict:
         mode      = inp.get("mode", "council")
         model_key = inp.get("model_key", None)
 
+        if mode == "xray":
+            print("[Curezy] Running X-ray analysis...")
+            image_b64 = inp.get("image_base64")
+            if not image_b64:
+                return {"success": False, "error": "No image_base64 provided for mode=xray"}
+            
+            # Save temp image
+            import base64
+            os.makedirs(".tmp", exist_ok=True)
+            temp_path = os.path.join(".tmp", f"runpod_xray_{int(time.time())}.png")
+            with open(temp_path, "wb") as f:
+                f.write(base64.b64decode(image_b64))
+            
+            try:
+                result = _xray_analyzer.analyze(temp_path)
+                return result
+            finally:
+                if os.path.exists(temp_path):
+                    os.remove(temp_path)
+
+        # Standard clinical analysis
         patient_state = _preprocessor.process(
             patient_id           = inp.get("patient_id", "runpod_patient"),
             symptoms_text        = inp.get("symptoms_text", ""),
