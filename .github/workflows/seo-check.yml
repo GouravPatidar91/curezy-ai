@@ -23,7 +23,7 @@ jobs:
     - name: Install dependencies
       run: |
         cd curezy-chat
-        npm ci
+        npm install
 
     - name: Build Project
       run: |
