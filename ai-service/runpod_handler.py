@@ -147,11 +147,30 @@ def handler(job: dict) -> dict:
             gender               = inp.get("gender", None),
         )
 
-        if mode == "single" and model_key:
-            clinical_output = _reasoner.analyze_single(patient_state.dict(), model_key)
-        else:
-            # _reasoner.analyze() is a synchronous method, it manages its own async internally
-            clinical_output = _reasoner.analyze(patient_state.dict())
+        import threading
+        def _run_in_thread(data, result_box, error_box):
+            try:
+                if mode == "single" and model_key:
+                    result_box.append(_reasoner.analyze_single(data, model_key))
+                else:
+                    result_box.append(_reasoner.analyze(data))
+            except Exception as ex:
+                import traceback
+                traceback.print_exc()
+                error_box.append(ex)
+
+        res = []
+        errs = []
+        t = threading.Thread(target=_run_in_thread, args=(patient_state.dict(), res, errs))
+        t.start()
+        t.join()
+
+        if errs:
+            raise errs[0]
+        if not res:
+            raise RuntimeError("Reasoner returned no result and no error")
+            
+        clinical_output = res[0]
 
         confidence_report = _uncertainty.analyze_clinical_confidence(
             patient_state.dict(), clinical_output.dict()
