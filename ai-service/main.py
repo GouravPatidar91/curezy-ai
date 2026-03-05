@@ -201,53 +201,85 @@ def analyze_patient(
     current_user: dict = Depends(get_current_user)
 ):
     try:
-        # Step 1 — Preprocess
-        patient_state = preprocessor.process(
-            patient_id=data.patient_id,
-            symptoms_text=data.symptoms_text,
-            medical_history_text=data.medical_history_text,
-            lab_text=data.lab_text,
-            medications_text=data.medications_text,
-            age=data.age,
-            gender=data.gender
-        )
+        from utils.runpod_client import RunpodClient
+        rpc = RunpodClient()
 
-        # Step 2 — Clinical reasoning
-        clinical_output = reasoner.analyze(patient_state.dict())
+        if rpc.is_configured:
+            print("[REST] ☁️ Active RunPod credentials detected. Forwarding to Cloud GPU...")
+            
+            runpod_payload = {
+                "patient_id": data.patient_id,
+                "symptoms_text": data.symptoms_text,
+                "medical_history_text": data.medical_history_text,
+                "lab_text": data.lab_text,
+                "medications_text": data.medications_text,
+                "age": data.age,
+                "gender": data.gender
+            }
+            
+            # Send to RunPod Serverless GPU
+            import asyncio
+            rp_result = asyncio.run(rpc.run_council_analysis(
+                patient_state=runpod_payload,
+                mode="council",
+                model_key=None
+            ))
+            
+            patient_state_dict = rp_result.get("patient_state", {})
+            clinical_output_dict = rp_result.get("clinical_analysis", {})
+            confidence_report_dict = rp_result.get("confidence_report", {})
+            
+            data_gaps = uncertainty_engine.generate_active_data_gaps(
+                patient_state_dict, clinical_output_dict
+            )
 
-        # Step 3 — Confidence analysis
-        confidence_report = uncertainty_engine.analyze_clinical_confidence(
-            patient_state.dict(),
-            clinical_output.dict()
-        )
+        else:
+            print("[REST] 💻 No RunPod credentials found. Running AI Council locally...")
+            
+            patient_state = preprocessor.process(
+                patient_id=data.patient_id,
+                symptoms_text=data.symptoms_text,
+                medical_history_text=data.medical_history_text,
+                lab_text=data.lab_text,
+                medications_text=data.medications_text,
+                age=data.age,
+                gender=data.gender
+            )
+            patient_state_dict = patient_state.dict()
 
-        # Step 4 — Active data gaps
-        data_gaps = uncertainty_engine.generate_active_data_gaps(
-            patient_state.dict(),
-            clinical_output.dict()
-        )
+            clinical_output = reasoner.analyze(patient_state_dict)
+            clinical_output_dict = clinical_output.dict()
+
+            confidence_report = uncertainty_engine.analyze_clinical_confidence(
+                patient_state_dict, clinical_output_dict
+            )
+            confidence_report_dict = confidence_report.dict()
+
+            data_gaps = uncertainty_engine.generate_active_data_gaps(
+                patient_state_dict, clinical_output_dict
+            )
 
         # Step 5 — Audit log
         log_result = audit_logger.log_prediction(
             patient_id=data.patient_id,
-            patient_state=patient_state.dict(),
-            clinical_analysis=clinical_output.dict(),
+            patient_state=patient_state_dict,
+            clinical_analysis=clinical_output_dict,
             doctor_id=current_user["user_id"]
         )
 
         # Step 6 — Digital twin
         twin_engine.record_visit(
-            patient_state=patient_state.dict(),
-            clinical_analysis=clinical_output.dict(),
+            patient_state=patient_state_dict,
+            clinical_analysis=clinical_output_dict,
             audit_log_id=log_result.get("log_id", "unknown")
         )
 
         return {
             "success": True,
             "requested_by": current_user["user_id"],
-            "patient_state": patient_state.dict(),
-            "clinical_analysis": clinical_output.dict(),
-            "confidence_report": confidence_report.dict(),
+            "patient_state": patient_state_dict,
+            "clinical_analysis": clinical_output_dict,
+            "confidence_report": confidence_report_dict,
             "active_data_gaps": data_gaps,
             "audit_log_id": log_result.get("log_id")
         }
@@ -647,39 +679,77 @@ async def _run_council_analysis(conversation_id: str, state, selected_model: str
     payload = conversation_manager.build_analysis_payload(conversation_id)
     conversation_manager.update_stage(conversation_id, IntakeStage.ANALYZING)
 
-    try:
-        patient_state = preprocessor.process(
-            patient_id=payload.get("patient_id", conversation_id),
-            symptoms_text=payload.get("symptoms_text", ""),
-            medical_history_text=(
-                payload.get("medical_history_text") or
-                payload.get("prior_diagnosis", "")
-            ),
-            lab_text=payload.get("lab_text", ""),
-            medications_text=payload.get("medications_text", ""),
-            age=payload.get("age"),
-            gender=payload.get("gender")
-        )
+        from utils.runpod_client import RunpodClient
+        rpc = RunpodClient()
 
-        import asyncio
-        # ── Route to single model or full council ──
-        if use_single:
-            print(f"[Chat] Single-model mode: {selected_model}")
-            clinical_output = await asyncio.to_thread(reasoner.analyze_single, patient_state.dict(), selected_model.lower())
+        if rpc.is_configured:
+            print("[Chat] ☁️ Active RunPod credentials detected. Forwarding to Cloud GPU...")
+            
+            # Pack exactly what RunPod's preprocessor expects
+            runpod_payload = {
+                "patient_id": payload.get("patient_id", conversation_id),
+                "symptoms_text": payload.get("symptoms_text", ""),
+                "medical_history_text": payload.get("medical_history_text") or payload.get("prior_diagnosis", ""),
+                "lab_text": payload.get("lab_text", ""),
+                "medications_text": payload.get("medications_text", ""),
+                "age": payload.get("age"),
+                "gender": payload.get("gender")
+            }
+            
+            # Send to RunPod Serverless GPU
+            rp_result = await rpc.run_council_analysis(
+                patient_state=runpod_payload,
+                mode="single" if use_single else "council",
+                model_key=selected_model.lower() if use_single else None
+            )
+            
+            # Extract standard dicts from RunPod JSON response
+            patient_state_dict = rp_result.get("patient_state", {})
+            clinical_output_dict = rp_result.get("clinical_analysis", {})
+            confidence_report_dict = rp_result.get("confidence_report", {})
+            
+            # We still need active data gaps locally for the chat UI missing data chips
+            data_gaps = uncertainty_engine.generate_active_data_gaps(
+                patient_state_dict, clinical_output_dict
+            )
+
         else:
-            clinical_output = await asyncio.to_thread(reasoner.analyze, patient_state.dict())
+            print("[Chat] 💻 No RunPod credentials found. Running AI Council locally...")
+            import asyncio
+            
+            patient_state = preprocessor.process(
+                patient_id=payload.get("patient_id", conversation_id),
+                symptoms_text=payload.get("symptoms_text", ""),
+                medical_history_text=payload.get("medical_history_text") or payload.get("prior_diagnosis", ""),
+                lab_text=payload.get("lab_text", ""),
+                medications_text=payload.get("medications_text", ""),
+                age=payload.get("age"),
+                gender=payload.get("gender")
+            )
+            patient_state_dict = patient_state.dict()
 
-        confidence_report = uncertainty_engine.analyze_clinical_confidence(
-            patient_state.dict(), clinical_output.dict()
-        )
-        data_gaps = uncertainty_engine.generate_active_data_gaps(
-            patient_state.dict(), clinical_output.dict()
-        )
+            # ── Route to single model or full council ──
+            if use_single:
+                clinical_output = await asyncio.to_thread(reasoner.analyze_single, patient_state_dict, selected_model.lower())
+            else:
+                clinical_output = await asyncio.to_thread(reasoner.analyze, patient_state_dict)
+            clinical_output_dict = clinical_output.dict()
+
+            confidence_report = uncertainty_engine.analyze_clinical_confidence(
+                patient_state_dict, clinical_output_dict
+            )
+            confidence_report_dict = confidence_report.dict()
+
+            data_gaps = uncertainty_engine.generate_active_data_gaps(
+                patient_state_dict, clinical_output_dict
+            )
+
+        # ── Regardless of Cloud vs Local, format message and update Audit Logs ──
         result_message = _format_analysis_for_chat(
-            clinical_output.dict(), confidence_report.dict(), data_gaps
+            clinical_output_dict, confidence_report_dict, data_gaps
         )
 
-        conversation_manager.set_analysis_result(conversation_id, clinical_output.dict())
+        conversation_manager.set_analysis_result(conversation_id, clinical_output_dict)
         conversation_manager.add_message(
             conversation_id=conversation_id,
             role=MessageRole.ASSISTANT,
@@ -689,13 +759,13 @@ async def _run_council_analysis(conversation_id: str, state, selected_model: str
         chat_patient_id = state.patient_id or conversation_id
         log_result = audit_logger.log_prediction(
             patient_id=chat_patient_id,
-            patient_state=patient_state.dict(),
-            clinical_analysis=clinical_output.dict(),
+            patient_state=patient_state_dict,
+            clinical_analysis=clinical_output_dict,
             doctor_id=None
         )
         twin_engine.record_visit(
-            patient_state=patient_state.dict(),
-            clinical_analysis=clinical_output.dict(),
+            patient_state=patient_state_dict,
+            clinical_analysis=clinical_output_dict,
             audit_log_id=log_result.get("log_id", "unknown")
         )
 
