@@ -1,0 +1,43 @@
+# ── Python ────────────────────────────────────────────────────
+ai-service/venv/
+**/__pycache__/
+**/*.pyc
+**/*.egg-info/
+**/.pytest_cache/
+
+# ── Frontend ──────────────────────────────────────────────────
+curezy-chat/node_modules/
+curezy-chat/build/
+
+# ── ML weights (pulled inside Docker at build time) ───────────
+ai-service/.models/
+ai-service/models/
+ai-service/MedSAM/
+ai-service/finetune/adapters/
+ai-service/finetune/gguf/
+**/*.gguf
+**/*.safetensors
+**/*.bin
+**/*.pt
+**/*.pth
+
+# ── Secrets ───────────────────────────────────────────────────
+.env
+.env.*
+**/.env
+
+# ── Temp / logs ───────────────────────────────────────────────
+ai-service/.tmp/
+ai-service/temp_uploads/
+ai-service/audit_fallback/
+**/*.log
+
+# ── Git / IDE ─────────────────────────────────────────────────
+.git/
+.github/
+.vscode/
+.idea/
+
+# ── Root dev files ────────────────────────────────────────────
+venv/
+tmp_patch.py
