@@ -168,18 +168,26 @@ def handler(job: dict) -> dict:
                 # Fallback if a loop is already running (e.g. RunPod's internal serverlet)
                 # We can't use asyncio.run(). We must use an existing loop or thread.
                 import threading
-                def _run_in_thread(coro, result_box):
+                def _run_in_thread(coro, result_box, error_box):
                     new_loop = asyncio.new_event_loop()
                     asyncio.set_event_loop(new_loop)
                     try:
                         result_box.append(new_loop.run_until_complete(coro))
+                    except Exception as ex:
+                        error_box.append(ex)
                     finally:
                         new_loop.close()
                 
                 res = []
-                t = threading.Thread(target=_run_in_thread, args=(_reasoner.analyze(patient_state.dict()), res))
+                errs = []
+                t = threading.Thread(target=_run_in_thread, args=(_reasoner.analyze(patient_state.dict()), res, errs))
                 t.start()
                 t.join()
+                
+                if errs:
+                    raise errs[0]
+                if not res:
+                    raise RuntimeError("Async reasoner returned no result and no error.")
                 clinical_output = res[0]
 
         confidence_report = _uncertainty.analyze_clinical_confidence(
