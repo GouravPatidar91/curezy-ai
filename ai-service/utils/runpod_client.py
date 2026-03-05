@@ -35,13 +35,40 @@ class RunpodClient:
             }
         }
 
-        async with httpx.AsyncClient(timeout=180.0) as client:
+        async with httpx.AsyncClient(timeout=300.0) as client:
+            # Initial synchronous request
             response = await client.post(self.url, headers=self.headers, json=payload)
             response.raise_for_status()
             
             result = response.json()
+            job_id = result.get("id")
             
+            # If it's already done (hot start)
             if result.get("status") == "COMPLETED" and result.get("output", {}).get("success"):
                 return result["output"]
-            else:
-                raise RuntimeError(f"RunPod execution failed: {result}")
+                
+            # If we need to wait / poll (cold start or long inference)
+            if result.get("status") == "IN_PROGRESS" or result.get("status") == "IN_QUEUE":
+                import asyncio
+                status_url = f"https://api.runpod.ai/v2/{self.endpoint_id}/status/{job_id}"
+                
+                print(f"[RunPodClient] Job {job_id} is {result.get('status')}. Polling for completion...")
+                
+                for _ in range(60): # wait up to ~3 minutes
+                    await asyncio.sleep(3)
+                    status_res = await client.get(status_url, headers=self.headers)
+                    status_res.raise_for_status()
+                    
+                    poll_data = status_res.json()
+                    status = poll_data.get("status")
+                    
+                    if status == "COMPLETED":
+                        if poll_data.get("output", {}).get("success"):
+                            print(f"[RunPodClient] Job {job_id} Completed!")
+                            return poll_data["output"]
+                        else:
+                            raise RuntimeError(f"RunPod execution failed internally: {poll_data}")
+                    elif status == "FAILED":
+                        raise RuntimeError(f"RunPod job FAILED: {poll_data}")
+                        
+            raise RuntimeError(f"RunPod execution timed out or failed: {result}")
