@@ -159,20 +159,6 @@ export default function Sidebar({ user, currentConvId, refreshTrigger, onNewChat
                             <Key size={15} />
                             API Keys
                         </button>
-                        <button
-                            onClick={() => navigate('/finetune')}
-                            className="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-white/5 text-gray-500 hover:text-indigo-600 transition-all w-full text-sm"
-                        >
-                            <Sparkles size={15} />
-                            Fine-Tune Models
-                        </button>
-                        <button
-                            onClick={() => navigate('/benchmark')}
-                            className="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-white/5 text-gray-500 hover:text-green-700 transition-all w-full text-sm"
-                        >
-                            <BarChart2 size={15} />
-                            Benchmark
-                        </button>
                     </>
                 )}
                 <div className={`flex items-center gap-2.5 px-3 py-2 rounded-xl bg-surface/50 border border-white/10 shadow-sm ${collapsed ? 'justify-center' : ''}`}>

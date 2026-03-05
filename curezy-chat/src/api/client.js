@@ -3,16 +3,22 @@ import { supabase } from '../config/supabase'
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000'
 
-const api = axios.create({ baseURL: API_URL })
+// Standard API instance — 3-minute timeout for most calls
+const api = axios.create({ baseURL: API_URL, timeout: 180_000 })
+
+// Long-timeout instance — 8 minutes for council/RunPod analysis
+const analysisApi = axios.create({ baseURL: API_URL, timeout: 480_000 })
 
 // Attach Supabase JWT to every request
-api.interceptors.request.use(async (config) => {
+const attachAuth = async (config) => {
     const { data: { session } } = await supabase.auth.getSession()
     if (session?.access_token) {
         config.headers.Authorization = `Bearer ${session.access_token}`
     }
     return config
-})
+}
+api.interceptors.request.use(attachAuth)
+analysisApi.interceptors.request.use(attachAuth)
 
 // ── Auth
 export const loginUser = (email, password) => supabase.auth.signInWithPassword({ email, password })
@@ -23,11 +29,14 @@ export const getSession = () => supabase.auth.getSession()
 
 // ── Chat
 export const startChat = () => api.post('/chat/start')
+// sendMessage uses the long-timeout instance because it may trigger council analysis (60-120s+)
 export const sendMessage = (convId, msg, selectedModel = null) =>
-    api.post('/chat/message', { conversation_id: convId, message: msg, selected_model: selectedModel })
+    analysisApi.post('/chat/message', { conversation_id: convId, message: msg, selected_model: selectedModel })
 
-export const stageSubmit = (convId, stage, data) => api.post('/chat/stage-submit', { conversation_id: convId, stage, data })
-export const skipStage = (convId, stage) => api.post('/chat/skip-stage', { conversation_id: convId, stage, data: {} })
+export const stageSubmit = (convId, stage, data, selectedModel = null) =>
+    api.post('/chat/stage-submit', { conversation_id: convId, stage, data, selected_model: selectedModel })
+export const skipStage = (convId, stage, selectedModel = null) =>
+    api.post('/chat/skip-stage', { conversation_id: convId, stage, data: {}, selected_model: selectedModel })
 export const uploadReport = (convId, file) => {
     const form = new FormData()
     form.append('conversation_id', convId)

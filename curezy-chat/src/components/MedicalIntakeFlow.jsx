@@ -37,8 +37,8 @@ function Chip({ label, selected, onClick, multi = true }) {
         <button
             onClick={onClick}
             className={`px-3.5 py-2 rounded-xl text-sm font-medium border transition-all select-none ${selected
-                    ? 'bg-primary-600 text-white border-primary-600 shadow-sm'
-                    : 'bg-white text-gray-700 border-gray-200 hover:border-primary-400 hover:text-primary-600'
+                ? 'bg-primary-600 text-white border-primary-600 shadow-sm'
+                : 'bg-white text-gray-700 border-gray-200 hover:border-primary-400 hover:text-primary-600'
                 }`}
         >
             {multi && selected ? <span className="mr-1">✓</span> : null}
@@ -49,7 +49,7 @@ function Chip({ label, selected, onClick, multi = true }) {
 
 // ── Stage 1: Chief Complaint ──────────────────────────────────────────
 
-function Stage1ChiefComplaint({ convId, onNext, setLoading }) {
+function Stage1ChiefComplaint({ convId, onNext, setLoading, selectedModel }) {
     const [value, setValue] = useState('')
     const [recording, setRecording] = useState(false)
     const recRef = useRef(null)
@@ -67,7 +67,7 @@ function Stage1ChiefComplaint({ convId, onNext, setLoading }) {
     const submit = async () => {
         if (!value.trim()) return
         setLoading(true)
-        try { await stageSubmit(convId, 'chief_complaint', { chief_complaint: value.trim() }) }
+        try { await stageSubmit(convId, 'chief_complaint', { chief_complaint: value.trim() }, selectedModel) }
         catch (e) { console.error(e) }
         onNext(value.trim())
     }
@@ -104,7 +104,7 @@ function Stage1ChiefComplaint({ convId, onNext, setLoading }) {
 const LOCATIONS = ['Head', 'Neck', 'Chest', 'Abdomen', 'Back', 'Left Arm', 'Right Arm', 'Left Leg', 'Right Leg', 'Whole Body']
 const CHARACTERS = ['Sharp', 'Dull', 'Burning', 'Throbbing', 'Stabbing', 'Cramping', 'Pressure', 'Aching']
 
-function Stage2SymptomDetail({ convId, onNext, setLoading }) {
+function Stage2SymptomDetail({ convId, onNext, setLoading, selectedModel }) {
     const [location, setLocation] = useState(null)
     const [character, setCharacter] = useState([])
     const [severity, setSeverity] = useState(5)
@@ -114,7 +114,7 @@ function Stage2SymptomDetail({ convId, onNext, setLoading }) {
     const submit = async () => {
         const data = { location, character: character.join(', '), severity }
         setLoading(true)
-        try { await stageSubmit(convId, 'symptom_detail', data) } catch (e) { console.error(e) }
+        try { await stageSubmit(convId, 'symptom_detail', data, selectedModel) } catch (e) { console.error(e) }
         onNext(data)
     }
 
@@ -169,7 +169,7 @@ const ASSOCIATED_OPTS = [
     'Cough', 'Diarrhea', 'Constipation', 'Swelling', 'Rash', 'None of these'
 ]
 
-function Stage3Associated({ convId, onNext, setLoading }) {
+function Stage3Associated({ convId, onNext, setLoading, selectedModel }) {
     const [selected, setSelected] = useState([])
     const toggle = opt => {
         if (opt === 'None of these') { setSelected(['None of these']); return }
@@ -181,7 +181,7 @@ function Stage3Associated({ convId, onNext, setLoading }) {
 
     const submit = async () => {
         setLoading(true)
-        try { await stageSubmit(convId, 'associated_symptoms', { associated: selected }) } catch (e) { console.error(e) }
+        try { await stageSubmit(convId, 'associated_symptoms', { associated: selected }, selectedModel) } catch (e) { console.error(e) }
         onNext(selected)
     }
 
@@ -204,7 +204,7 @@ const ONSET_OPTS = ['Sudden (minutes)', 'Gradual (hours)', 'Slowly over days', '
 const PATTERN_OPTS = ['Constant', 'Comes and goes', 'Getting worse', 'Getting better', 'Worse at night']
 const DURATION_UNITS = ['Hours', 'Days', 'Weeks', 'Months']
 
-function Stage4Timeline({ convId, onNext, setLoading }) {
+function Stage4Timeline({ convId, onNext, setLoading, selectedModel }) {
     const [durationValue, setDurationValue] = useState('')
     const [durationUnit, setDurationUnit] = useState('Days')
     const [onset, setOnset] = useState(null)
@@ -219,7 +219,7 @@ function Stage4Timeline({ convId, onNext, setLoading }) {
             pattern
         }
         setLoading(true)
-        try { await stageSubmit(convId, 'timeline', data) } catch (e) { console.error(e) }
+        try { await stageSubmit(convId, 'timeline', data, selectedModel) } catch (e) { console.error(e) }
         onNext(data)
     }
 
@@ -272,7 +272,7 @@ const HISTORY_OPTS = [
     'Depression / Anxiety', 'COPD', 'None'
 ]
 
-function Stage5History({ convId, onNext, setLoading }) {
+function Stage5History({ convId, onNext, setLoading, selectedModel }) {
     const [selected, setSelected] = useState([])
     const [other, setOther] = useState('')
     const toggle = opt => {
@@ -286,7 +286,7 @@ function Stage5History({ convId, onNext, setLoading }) {
     const submit = async () => {
         const combined = [...selected.filter(x => x !== 'None'), other].filter(Boolean).join(', ') || 'None'
         setLoading(true)
-        try { await stageSubmit(convId, 'history', { history: combined }) } catch (e) { console.error(e) }
+        try { await stageSubmit(convId, 'history', { history: combined }, selectedModel) } catch (e) { console.error(e) }
         onNext(combined)
     }
 
@@ -310,7 +310,7 @@ function Stage5History({ convId, onNext, setLoading }) {
 
 // ── Stage 6: Medications ──────────────────────────────────────────────
 
-function Stage6Medications({ convId, onNext, setLoading }) {
+function Stage6Medications({ convId, onNext, setLoading, selectedModel }) {
     const [meds, setMeds] = useState([])
     const [input, setInput] = useState('')
 
@@ -326,12 +326,12 @@ function Stage6Medications({ convId, onNext, setLoading }) {
     const handle = async (skip = false) => {
         setLoading(true)
         if (skip) {
-            try { await skipStage(convId, 'medications') } catch (e) { console.error(e) }
+            try { await skipStage(convId, 'medications', selectedModel) } catch (e) { console.error(e) }
             onNext([], true)
         } else {
             if (input.trim()) addMed()
             const allMeds = [...meds, input.trim()].filter(Boolean)
-            try { await stageSubmit(convId, 'medications', { medications: allMeds }) } catch (e) { console.error(e) }
+            try { await stageSubmit(convId, 'medications', { medications: allMeds }, selectedModel) } catch (e) { console.error(e) }
             onNext(allMeds, false)
         }
     }
@@ -373,7 +373,7 @@ function Stage6Medications({ convId, onNext, setLoading }) {
 
 // ── Stage 7: Doctor Reports ───────────────────────────────────────────
 
-function Stage7Reports({ convId, onNext, setLoading, onUploadResult }) {
+function Stage7Reports({ convId, onNext, setLoading, onUploadResult, selectedModel }) {
     const [file, setFile] = useState(null)
     const [dragging, setDragging] = useState(false)
     const [uploading, setUploading] = useState(false)
@@ -404,7 +404,7 @@ function Stage7Reports({ convId, onNext, setLoading, onUploadResult }) {
     const proceed = async (skip = false) => {
         setLoading(true)
         if (skip) {
-            try { await skipStage(convId, 'reports') } catch (e) { console.error(e) }
+            try { await skipStage(convId, 'reports', selectedModel) } catch (e) { console.error(e) }
             onNext(null, true)
         } else {
             onNext(result, false)
@@ -497,7 +497,7 @@ const SCAN_LABELS = {
     xray_musculoskeletal: 'Bone X-Ray', ct_abdomen: 'CT Abdomen', mammogram: 'Mammogram', medical_image: 'Medical Scan',
 }
 
-function Stage8Imaging({ convId, onNext, setLoading, imagingTypes, onUploadResult }) {
+function Stage8Imaging({ convId, onNext, setLoading, imagingTypes, onUploadResult, selectedModel }) {
     const [file, setFile] = useState(null)
     const [uploading, setUploading] = useState(false)
     const [result, setResult] = useState(null)
@@ -523,7 +523,7 @@ function Stage8Imaging({ convId, onNext, setLoading, imagingTypes, onUploadResul
     const proceed = async (skip = false) => {
         setLoading(true)
         if (skip) {
-            try { await skipStage(convId, 'imaging') } catch (e) { console.error(e) }
+            try { await skipStage(convId, 'imaging', selectedModel) } catch (e) { console.error(e) }
             onNext(null, true)
         } else {
             onNext(result, false)
@@ -629,8 +629,8 @@ function Stage9Analyzing({ currentStep }) {
                 {['Dr. Gemma', 'Dr. OpenBio', 'Dr. Mistral'].map((doc, i) => (
                     <div key={doc} className="flex flex-col items-center gap-2">
                         <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-2xl transition-all duration-500 ${currentStep === 'done'
-                                ? 'bg-green-50 ring-2 ring-green-400'
-                                : 'bg-primary-50 ring-2 ring-primary-200 animate-pulse'
+                            ? 'bg-green-50 ring-2 ring-green-400'
+                            : 'bg-primary-50 ring-2 ring-primary-200 animate-pulse'
                             }`} style={{ animationDelay: `${i * 200}ms` }}>
                             {currentStep === 'done' ? '✅' : ['🧠', '🔬', '💊'][i]}
                         </div>
@@ -702,7 +702,7 @@ export default function MedicalIntakeFlow({
     }, [advanceTo, onAnalysisTriggered])
 
     // Generic Next handler: submit yields res from API, advance accordingly
-    const makeNext = (stage) => (data, skipped) => {
+    const makeNext = (stage) => async (data, skipped) => {
         // The submit API call is already done by each stage component
         // We just move to the next logical stage
         const idx = STAGE_ORDER.indexOf(stage)
@@ -714,10 +714,19 @@ export default function MedicalIntakeFlow({
         if (next === 'analyzing') {
             onAnalysisTriggered && onAnalysisTriggered()
         }
+
+        // If a stage was skipped, call skipStage with selectedModel
+        if (skipped) {
+            try {
+                await skipStage(convId, stage, selectedModel) // Pass selectedModel
+            } catch (e) {
+                console.error(`Error skipping stage ${stage}:`, e)
+            }
+        }
         advanceTo(next)
     }
 
-    const sharedProps = { convId, setLoading }
+    const sharedProps = { convId, setLoading, selectedModel } // Pass selectedModel to sharedProps
 
     return (
         <div className="w-full">

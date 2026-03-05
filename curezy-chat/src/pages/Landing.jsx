@@ -93,15 +93,42 @@ export default function Landing() {
         setWaitlistStatus({ type: '', msg: '' })
         setWaitlistLoading(true)
         try {
+            // First check if email already exists
+            const { data: existingUser } = await supabase
+                .from('early_access')
+                .select('email')
+                .eq('email', waitlistEmail)
+                .maybeSingle()
+
+            if (existingUser) {
+                setWaitlistStatus({ type: 'success', msg: 'You are already on the waitlist! We will get back to you soon.' })
+                setWaitlistName(''); setWaitlistEmail(''); setUserPrompt('');
+                setWaitlistLoading(false);
+                return;
+            }
+
             const { error } = await supabase.from('early_access').insert({
                 full_name: waitlistName,
                 email: waitlistEmail
             })
             if (error) throw error
+
+            // Trigger Backend Email Notification
+            try {
+                const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000'
+                await fetch(`${API_URL}/v1/notifications/waitlist`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: waitlistEmail, name: waitlistName })
+                })
+            } catch (emailErr) {
+                console.warn('[Landing] Email notification failed (waitlist):', emailErr)
+            }
+
             setWaitlistStatus({ type: 'success', msg: 'Thank you for applying for early access! We will get back to you soon.' })
             setWaitlistName(''); setWaitlistEmail(''); setUserPrompt('');
         } catch (err) {
-            setWaitlistStatus({ type: 'error', msg: err.message || 'Something went wrong submitting your application.' })
+            setWaitlistStatus({ type: 'error', msg: err?.message || 'Something went wrong submitting your application.' })
         }
         setWaitlistLoading(false)
     }
@@ -140,7 +167,7 @@ export default function Landing() {
                 </motion.div>
 
                 <button
-                    onClick={() => { setShowAuth(true); setIsLogin(false); }}
+                    onClick={() => setShowWaitlist(true)}
                     className="relative px-6 py-2.5 rounded-full overflow-hidden font-semibold text-sm transition-all hover:scale-105 border border-white/10 bg-white/5 hover:bg-white/10 pointer-events-auto"
                 >
                     <span className="relative flex items-center gap-2">
@@ -298,7 +325,7 @@ export default function Landing() {
                         </div>
                         <p className="text-gray-400 mb-8 max-w-sm">Medicine for the future. Diagnosing complexities at the speed of thought.</p>
                         <button
-                            onClick={() => { setShowAuth(true); setIsLogin(false); }}
+                            onClick={() => setShowWaitlist(true)}
                             className="px-6 py-2.5 rounded-full bg-white text-black font-semibold text-sm hover:scale-105 transition-transform"
                         >
                             Get Started
@@ -508,6 +535,15 @@ export default function Landing() {
                                             {waitlistLoading ? 'Submitting...' : 'Join Waitlist'}
                                         </span>
                                     </button>
+
+                                    <div className="mt-6 text-center">
+                                        <button
+                                            onClick={() => { setShowWaitlist(false); setShowAuth(true); setIsLogin(true); }}
+                                            className="text-gray-500 hover:text-white text-xs font-medium transition-colors"
+                                        >
+                                            Already have access? <span className="text-white">Sign In</span>
+                                        </button>
+                                    </div>
                                 </div>
                             )}
                         </motion.div>

@@ -5,6 +5,7 @@ import { AlertCircle, RefreshCcw } from 'lucide-react'
 export default function MessageBubble({ message, onRetry }) {
     const isUser = message.role === 'user'
     const isFailed = message.isFailed
+    const isInfo = message.isInfo
 
     return (
         <motion.div
@@ -29,7 +30,9 @@ export default function MessageBubble({ message, onRetry }) {
                         ? isFailed
                             ? 'bg-red-500/20 border border-red-500/50 text-white rounded-br-none shadow-[0_0_15px_rgba(239,68,68,0.2)]'
                             : 'bg-gradient-to-br from-accent-blue to-accent-purple text-white rounded-br-none shadow-[0_0_15px_rgba(123,44,191,0.3)]'
-                        : 'glass border border-white/10 text-white rounded-bl-none z-10'
+                        : isInfo
+                            ? 'bg-accent-blue/5 border border-accent-blue/10 text-accent-blue italic rounded-bl-none z-10'
+                            : 'glass border border-white/10 text-white rounded-bl-none z-10'
                     }
         `}>
                     {isFailed && (

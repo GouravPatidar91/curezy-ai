@@ -5,7 +5,7 @@ import Chat from './pages/Chat'
 import ApiKeys from './pages/ApiKeys'
 import FineTune from './pages/FineTune'
 import BenchmarkDashboard from './pages/BenchmarkDashboard'
-// New Footer Pages
+import PendingAccess from './pages/PendingAccess'
 import Documentation from './pages/Documentation'
 import HelpCenter from './pages/HelpCenter'
 import MedicalDisclaimers from './pages/MedicalDisclaimers'
@@ -15,19 +15,32 @@ import PrivacyPolicy from './pages/PrivacyPolicy'
 import TermsOfService from './pages/TermsOfService'
 
 function PrivateRoute({ children }) {
-    const { user } = useAuth()
-    return user ? children : <Navigate to="/" replace />
+    const { user, isApproved, loading } = useAuth()
+    if (loading) return null
+    if (!user) return <Navigate to="/" replace />
+    if (!isApproved) return <Navigate to="/pending-access" replace />
+    return children
 }
 
 function PublicRoute({ children }) {
+    const { user, isApproved } = useAuth()
+    // If logged in AND approved, go to chat
+    if (user && isApproved) return <Navigate to="/chat" replace />
+    // If logged in but NOT approved, go to pending (if trying to hit landing)
+    if (user && !isApproved) return <Navigate to="/pending-access" replace />
+    return children
+}
+
+function PendingRoute() {
     const { user } = useAuth()
-    return user ? <Navigate to="/chat" replace /> : children
+    return user ? <PendingAccess /> : <Navigate to="/" />
 }
 
 function AppRoutes() {
     return (
         <Routes>
             <Route path="/" element={<PublicRoute><Landing /></PublicRoute>} />
+            <Route path="/pending-access" element={<PendingRoute />} />
             <Route path="/chat" element={<PrivateRoute><Chat /></PrivateRoute>} />
             <Route path="/apikeys" element={<PrivateRoute><ApiKeys /></PrivateRoute>} />
             <Route path="/finetune" element={<PrivateRoute><FineTune /></PrivateRoute>} />

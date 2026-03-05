@@ -144,32 +144,32 @@ function EmptyState({ onNewChat }) {
 const MODEL_OPTIONS = [
     {
         key: 'council',
-        label: 'Council Mode',
-        desc: 'All 3 doctors debate & reach consensus',
+        label: 'AURANET (Thinking)',
+        desc: 'Full council debate — most accurate',
         emoji: '🩺',
         color: 'from-violet-500 to-indigo-500',
         badge: 'bg-violet-100 text-violet-700',
     },
     {
         key: 'medgemma',
-        label: 'MedGemma',
-        desc: 'General medicine · Primary diagnostician',
+        label: 'AURIX',
+        desc: 'Most powerful model · Primary diagnostician',
         emoji: '🧠',
         color: 'from-blue-500 to-cyan-500',
         badge: 'bg-blue-500/20 text-blue-300',
     },
     {
         key: 'openbiollm',
-        label: 'OpenBioLLM',
-        desc: 'Biomedical research · Evidence validator',
+        label: 'AURA',
+        desc: 'Main balanced model · Biomedical evidence engine',
         emoji: '🔬',
         color: 'from-green-500 to-teal-500',
         badge: 'bg-green-500/20 text-green-300',
     },
     {
         key: 'mistral',
-        label: 'Mistral 7B',
-        desc: 'Differential diagnosis · Devil\'s advocate',
+        label: 'AURIS',
+        desc: 'Fast lightweight · Devil\'s advocate',
         emoji: '💊',
         color: 'from-orange-500 to-red-500',
         badge: 'bg-orange-500/20 text-orange-300',
@@ -453,6 +453,7 @@ export default function Chat() {
 
     // ── New chat ──
     const handleNewChat = useCallback(async () => {
+        console.log('[Chat] Starting new session...')
         clearInterval(analysisTimerRef.current)
         setMessages([]); setAnalysisResult(null); setStage('greeting')
         setConvTitle('New Consultation'); setShowReferral(false)
@@ -463,9 +464,12 @@ export default function Chat() {
             const newBackendId = res.data?.conversation_id
             const greeting = res.data?.message || "Hello! I'm Curezy AI. What brings you in today?"
             const firstStage = res.data?.stage || 'chief_complaint'
-            if (!newBackendId) throw new Error('No conversation_id from backend')
 
-            // Backend ID = Supabase ID for new chats (they start together)
+            if (!newBackendId) {
+                console.warn('[Chat] Backend returned no ID, using fallback')
+                throw new Error('No conversion ID')
+            }
+
             backendConvIdRef.current = newBackendId
             setConvId(newBackendId)
             setStage(firstStage)
@@ -474,11 +478,16 @@ export default function Chat() {
             await dbUpsertConversation(user?.id, newBackendId, 'New Consultation')
             await dbInsertMessage(user?.id, newBackendId, 'assistant', greeting)
             setRefreshSidebar(n => n + 1)
-        } catch {
+        } catch (err) {
+            console.error('[Chat] handleNewChat failed:', err)
+            const fallbackId = `temp_${Date.now()}`
+            setConvId(fallbackId)
+            backendConvIdRef.current = fallbackId
             const fallbackGreeting = "Hello! I'm Curezy AI Medical Council. What brings you in today?"
             setMessages([{ role: 'assistant', content: fallbackGreeting, timestamp: new Date().toISOString() }])
+        } finally {
+            setLoading(false)
         }
-        setLoading(false)
     }, [user?.id])
 
     // ── Restore most recent conversation on mount ──
@@ -486,6 +495,7 @@ export default function Chat() {
         if (initialized.current || !user?.id) return
         initialized.current = true
         const restore = async () => {
+            console.log('[Chat] Restoring session for user:', user.id)
             setConvLoading(true)
             try {
                 const { data: convs } = await supabase
@@ -493,21 +503,23 @@ export default function Chat() {
                     .eq('user_id', user.id).order('updated_at', { ascending: false }).limit(1)
                 const last = convs?.[0]
                 if (last) {
-                    // Load history from Supabase using the stable ID
                     const msgs = await dbLoadMessages(last.conversation_id)
-                    setConvId(last.conversation_id)          // ← stable Supabase ID
+                    setConvId(last.conversation_id)
                     setConvTitle(last.title || 'Consultation')
                     setMessages(msgs)
                     const hasResults = msgs.some(m => m.role === 'assistant' && (m.content.includes('diagnosis') || m.content.includes('condition')))
                     setStage(hasResults ? 'results' : msgs.length > 0 ? 'chief_complaint' : 'greeting')
 
-                    // Boot a fresh backend session separately — does NOT change convId
                     await bootBackendSession()
                 } else {
                     await handleNewChat()
                 }
-            } catch { await handleNewChat() }
-            setConvLoading(false)
+            } catch (err) {
+                console.error('[Chat] Restore failed:', err)
+                await handleNewChat()
+            } finally {
+                setConvLoading(false)
+            }
         }
         restore()
     }, [user?.id, bootBackendSession, handleNewChat])
@@ -578,6 +590,19 @@ export default function Chat() {
                 const newBId = await bootBackendSession()
                 if (!newBId) throw err
                 res = await doSend(newBId)
+            } else if (err?.code === 'ECONNABORTED' || err?.message?.toLowerCase().includes('timeout')) {
+                // Request timed out on the frontend — but backend may still be processing.
+                // Keep the ToT terminal visible and show an informational message.
+                console.warn('[Chat] Request timed out — backend still processing. Showing wait message.')
+                const waitMsg = {
+                    role: 'assistant',
+                    content: '⏳ The AI Council is still analyzing your case — this can take a few minutes for complex diagnostics. Please wait, results will appear shortly.',
+                    timestamp: new Date().toISOString(),
+                    isInfo: true,
+                }
+                setMessages(prev => [...prev, waitMsg])
+                setLoading(false)
+                return   // Don't mark as failed; let the backend finish
             } else {
                 throw err
             }
@@ -603,9 +628,6 @@ export default function Chat() {
                     setShowingAnalysis(true)
                     startAnalysisSequence()
                 }
-                const aiMsg = { role: 'assistant', content: reply, timestamp: new Date().toISOString() }
-                setMessages(prev => [...prev, aiMsg])
-                await dbInsertMessage(user?.id, convId, 'assistant', reply)   // ← stable convId
 
                 if (normAnalysis) {
                     setAnalysisResult({ analysis: normAnalysis, confidence: res.data.confidence, dataGaps: res.data.data_gaps })
@@ -613,16 +635,25 @@ export default function Chat() {
                     setAnalysisStep('done')
                     // Allow the ToT animation to finish gracefully before transitioning
                     setTimeout(() => { setShowingAnalysis(false); setStage('results'); setShowReferral(true) }, 3000)
+                } else {
+                    const aiMsg = { role: 'assistant', content: reply, timestamp: new Date().toISOString() }
+                    setMessages(prev => [...prev, aiMsg])
+                    await dbInsertMessage(user?.id, convId, 'assistant', reply)
                 }
             } else {
                 const aiMsg = { role: 'assistant', content: reply, timestamp: new Date().toISOString() }
                 setMessages(prev => [...prev, aiMsg])
-                await dbInsertMessage(user?.id, convId, 'assistant', reply)   // ← stable convId
+                await dbInsertMessage(user?.id, convId, 'assistant', reply)
             }
 
             await dbTouchConversation(user?.id, convId)                        // ← stable convId
         } catch (err) {
             console.error('[Chat] response handling error:', err)
+            // Reset analysis UI if it was stuck showing (e.g. RunPod returned success: false)
+            clearInterval(analysisTimerRef.current)
+            setShowingAnalysis(false)
+            setAnalysisStep('initializing')
+            setStage(prev => prev === 'analyzing' ? 'confirming' : prev)
             // Flag the last user message as failed instead of appending an AI error
             setMessages(prev => {
                 const newMsgs = [...prev]
@@ -634,7 +665,7 @@ export default function Chat() {
             })
         }
         setLoading(false)
-    }, [input, loading, convId, stage, messages, showingAnalysis, user?.id, startAnalysisSequence, bootBackendSession])
+    }, [input, loading, convId, stage, messages, showingAnalysis, user?.id, startAnalysisSequence, bootBackendSession, selectedModel])
 
     const handleRetry = useCallback((failedText) => {
         setMessages(prev => {
@@ -691,7 +722,7 @@ export default function Chat() {
                     <div className="min-w-0">
                         <h2 className="font-bold text-white text-sm truncate max-w-xs">{convTitle}</h2>
                         <p className="text-xs text-gray-500 font-medium">
-                            {selectedModel === 'council' ? 'Council Mode (3 Models)' : MODEL_OPTIONS.find(m => m.key === selectedModel)?.label}
+                            {MODEL_OPTIONS.find(m => m.key === selectedModel)?.label}
                         </p>
                     </div>
                     <div className="flex items-center gap-2">
@@ -717,18 +748,19 @@ export default function Chat() {
 
                     {isIdle && !convLoading && <EmptyState onNewChat={handleNewChat} />}
 
-                    {!convLoading && messages.map((msg, i) => (
-                        <MessageBubble key={`${msg.role}-${i}-${msg.timestamp}`} message={msg} onRetry={handleRetry} />
-                    ))}
+                    {!convLoading && messages
+                        .filter(msg => !msg.content?.startsWith('## 🩺 Curezy AI Health Assessment'))
+                        .map((msg, i) => (
+                            <MessageBubble key={`${msg.role}-${i}-${msg.timestamp}`} message={msg} onRetry={handleRetry} />
+                        ))}
 
                     {showingAnalysis && !convLoading && <AnalysisBubble currentStep={analysisStep} />}
 
                     {analysisResult && stage === 'results' && !convLoading && (
                         <>
                             <AnalysisCard
-                                analysis={analysisResult.analysis}
-                                confidence={analysisResult.confidence}
-                                dataGaps={analysisResult.dataGaps}
+                                {...analysisResult}
+                                modelLabel={MODEL_OPTIONS.find(m => m.key === selectedModel)?.label}
                             />
                             <FeedbackBar
                                 sessionId={backendConvIdRef.current}

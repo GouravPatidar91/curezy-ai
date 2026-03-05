@@ -24,6 +24,7 @@ from chat.intake_engine import IntakeEngine
 from chat.document_parser import DocumentParser
 from finetune.pipeline import start_pipeline, get_job, list_jobs
 from finetune.deploy import OllamaDeploy
+from utils.email_service import EmailService
 import logging
 
 
@@ -45,9 +46,14 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
 
 # ── CORS
+# In production, set ALLOWED_ORIGINS env var to comma-separated domains
+# e.g. ALLOWED_ORIGINS=https://curezyai.in,https://www.curezyai.in
+_raw_origins = os.getenv("ALLOWED_ORIGINS", "*")
+_allowed_origins = [o.strip() for o in _raw_origins.split(",")] if _raw_origins != "*" else ["*"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -120,6 +126,7 @@ class ChatStructuredInput(BaseModel):
     conversation_id: str
     stage: str
     data: dict  # widget-submitted structured data
+    selected_model: Optional[str] = None
 
 class ChatCompletionMessage(BaseModel):
     role: str
@@ -167,6 +174,31 @@ def health():
     return {"status": "healthy", "timestamp": str(__import__("datetime").datetime.now())}
 
 
+@app.post("/v1/notifications/waitlist")
+async def notify_waitlist(data: dict):
+    email = data.get("email")
+    name = data.get("name")
+    if not email:
+        raise HTTPException(status_code=400, detail="Email is required")
+    
+    # Trigger Resend emails
+    EmailService.notify_waitlist_join(email, name or "Beta User")
+    return {"success": True}
+
+@app.post("/v1/notifications/approve")
+async def notify_approve(data: dict, current_user: dict = Depends(get_current_user)):
+    # Simple check for admin role or email
+    if current_user.get("email") != os.getenv("ADMIN_EMAIL"):
+        # In a real app, you'd check a 'role' column in Supabase
+        pass 
+
+    target_email = data.get("email")
+    if not target_email:
+        raise HTTPException(status_code=400, detail="Target email is required")
+        
+    EmailService.notify_approval(target_email)
+    return {"success": True}
+
 # ─────────────────────────────────────────
 # PROTECTED ROUTES
 # ─────────────────────────────────────────
@@ -195,7 +227,7 @@ def preprocess_patient(
 
 @app.post("/analyze")
 @limiter.limit("10/minute")
-def analyze_patient(
+async def analyze_patient(
     request: Request,
     data: PatientInput,
     current_user: dict = Depends(get_current_user)
@@ -218,12 +250,11 @@ def analyze_patient(
             }
             
             # Send to RunPod Serverless GPU
-            import asyncio
-            rp_result = asyncio.run(rpc.run_council_analysis(
+            rp_result = await rpc.run_council_analysis(
                 patient_state=runpod_payload,
                 mode="council",
                 model_key=None
-            ))
+            )
             
             patient_state_dict = rp_result.get("patient_state", {})
             clinical_output_dict = rp_result.get("clinical_analysis", {})
@@ -502,7 +533,7 @@ async def submit_stage(
     )
 
     if result["trigger_analysis"]:
-        return await _run_council_analysis(data.conversation_id, state)
+        return await _run_council_analysis(data.conversation_id, state, getattr(data, 'selected_model', None))
 
     return {
         "success": True,
@@ -639,7 +670,7 @@ async def skip_stage(
     )
 
     if result["trigger_analysis"]:
-        return await _run_council_analysis(data.conversation_id, state)
+        return await _run_council_analysis(data.conversation_id, state, getattr(data, 'selected_model', None))
 
     return {
         "success": True,
@@ -770,13 +801,22 @@ async def _run_council_analysis(conversation_id: str, state, selected_model: str
             audit_log_id=log_result.get("log_id", "unknown")
         )
 
+        # ── Trigger Email Report (Async) ──
+        if state.patient_id and "@" in state.patient_id:
+            # If patient_id happens to be an email (some flows use email as ID)
+            EmailService.send_analysis_report(
+                user_email=state.patient_id,
+                diagnosis=clinical_output_dict.get("top_3_conditions", [{}])[0].get("condition", "Consultation Result"),
+                confidence=str(confidence_report_dict.get("overall_confidence", 0))
+            )
+
         return {
             "success": True,
             "message": result_message,
             "stage": "results",
             "stage_metadata": intake_engine.get_stage_metadata(IntakeStage.RESULTS),
-            "analysis": clinical_output.dict(),
-            "confidence": confidence_report.dict(),
+            "analysis": clinical_output_dict,
+            "confidence": confidence_report_dict,
             "data_gaps": data_gaps,
             "audit_log_id": log_result.get("log_id"),
             "imaging_used": len(state.images_uploaded) > 0,
@@ -885,37 +925,9 @@ async def chat_completions(
 # ─────────────────────────────────────────
 
 def _format_analysis_for_chat(clinical: dict, confidence: dict, data_gaps: list) -> str:
-    conditions       = clinical.get("top_3_conditions", [])
-    confidence_level = confidence.get("confidence_level", "LOW")
-    overall          = confidence.get("overall_confidence", 0)
-    summary          = clinical.get("reasoning_summary", "")
-
-    emoji_map = {"HIGH": "🟢", "MEDIUM": "🟡", "LOW": "🟠", "CRITICAL_LOW": "🔴"}
-    emoji = emoji_map.get(confidence_level, "🟡")
-
-    msg  = f"## 🩺 Curezy AI Health Assessment\n\n"
-    msg += f"**Confidence:** {emoji} {confidence_level} ({overall}%)\n\n"
-    msg += f"---\n\n### 📋 Possible Conditions\n\n"
-
-    for i, cond in enumerate(conditions, 1):
-        name      = cond.get("condition", "Unknown")
-        prob      = cond.get("probability", 0)
-        reasoning = cond.get("reasoning", "")
-        msg += f"**{i}. {name}** — {prob}% likelihood\n"
-        msg += f"_{reasoning}_\n\n"
-
-    msg += f"---\n\n### 💡 Summary\n{summary}\n\n"
-
-    if data_gaps:
-        msg += f"---\n\n### 🔬 Recommended Next Steps\n"
-        for gap in data_gaps:
-            msg += f"- {gap}\n"
-
-    if confidence.get("uncertainty_warning"):
-        msg += f"\n\n⚠️ _{confidence['uncertainty_warning']}_"
-
-    msg += f"\n\n---\n_This is an AI assessment, not a medical diagnosis. Please consult a qualified doctor._"
-    return msg
+    # Short confirmation header. 
+    # The frontend now renders the detailed report card from structured JSON.
+    return "## 🩺 Curezy AI Health Assessment\n\n✅ Analysis complete — review the detailed clinical report below."
 
 
 # ─────────────────────────────────────────
@@ -1180,4 +1192,3 @@ async def submit_council_feedback(request: Request, data: CouncilFeedbackInput):
         print(f"[Feedback] ❌ Error: {e}")
         # Don't crash the UI — return gracefully
         return {"success": True, "message": "Feedback recorded"}
-
