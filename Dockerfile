@@ -15,10 +15,8 @@ RUN apt-get update && apt-get install -y \
     curl wget git zstd \
     && rm -rf /var/lib/apt/lists/*
 
-# ── Install Ollama (direct binary) ────────────────────────────
-RUN curl -L https://github.com/ollama/ollama/releases/download/v0.6.1/ollama-linux-amd64 \
-    -o /usr/local/bin/ollama \
-    && chmod +x /usr/local/bin/ollama
+# ── Install Ollama (install.sh works reliably on Linux) ───────
+RUN curl -fsSL https://ollama.com/install.sh | sh
 
 # ── Python dependencies ────────────────────────────────────────
 COPY ai-service/requirements.txt .
