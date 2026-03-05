@@ -1,100 +1,124 @@
 """
-runpod_handler.py
-=================
-RunPod Serverless handler for Curezy AURANET.
-
-How it works:
-  - On cold start: Ollama server launches, models load into VRAM
-  - On each request: handler() runs the council/single-model analysis
-  - When idle (no requests): RunPod scales workers to 0 → GPU stops → $0 cost
-  - On next request: pod spins back up (cold start ~30–60s)
-
-Build & deploy:
-  docker build -t your-dockerhub/curezy-auranet:latest .
-  docker push your-dockerhub/curezy-auranet:latest
-  → Register image in RunPod Serverless dashboard
+runpod_handler.py  —  Curezy AURANET Serverless Entry Point
+Models and services are loaded lazily on first request to avoid startup timeouts.
 """
 
 import runpod
 import subprocess
 import time
-import os
 import sys
+import os
+import traceback
 
-# ── Add the ai-service root to the path ───────────────────────────────────────
-sys.path.insert(0, os.path.dirname(__file__))
+# ── Add ai-service root to path ───────────────────────────────────────────────
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-# ── Start Ollama on cold start (runs once per worker lifetime) ─────────────────
-def _start_ollama():
-    print("[Curezy] Starting Ollama server...")
-    subprocess.Popen(["ollama", "serve"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    # Wait for Ollama to be ready
-    for _ in range(30):
-        try:
-            import ollama as _ol
-            _ol.list()
-            print("[Curezy] ✅ Ollama ready")
-            break
-        except Exception:
-            time.sleep(2)
-    else:
-        raise RuntimeError("Ollama failed to start within 60s")
+# ── Lazy globals (loaded on first request) ────────────────────────────────────
+_initialized   = False
+_preprocessor  = None
+_reasoner      = None
+_uncertainty   = None
 
-    # Pull models if not already cached (first cold start on new worker)
+
+def _init():
+    """Cold-start init — runs once per worker on the first request."""
+    global _initialized, _preprocessor, _reasoner, _uncertainty
+
+    if _initialized:
+        return
+
+    print("[Curezy] Cold start — initialising worker...")
+
+    # 1. Start Ollama
+    _start_ollama()
+
+    # 2. Pull + brand models (skipped if already cached via Network Volume)
     _pull_if_needed("alibayram/medgemma:4b")
     _pull_if_needed("koesn/llama3-openbiollm-8b:latest")
     _pull_if_needed("mistral:7b")
+    _rename_models()
 
-    # Brand models (idempotent — skips if already branded)
-    print("[Curezy] Applying Curezy brand names...")
+    # 3. Import heavy modules (after Ollama is ready)
+    print("[Curezy] Loading Python services...")
     try:
-        import subprocess as sp
-        sp.run(["python", "ollama_rename.py"], check=False)
+        from preprocessing.patient_preprocessor import PatientPreprocessor
+        from agents.clinical_reasoner import ClinicalReasoner
+        from confidence.uncertainty_engine import UncertaintyEngine
+
+        _preprocessor = PatientPreprocessor()
+        _reasoner     = ClinicalReasoner()
+        _uncertainty  = UncertaintyEngine()
+        print("[Curezy] ✅ All services loaded")
     except Exception as e:
-        print(f"[Curezy] rename warning: {e}")
-    print("[Curezy] ✅ Curezy AURIX + AURA + AURIS ready")
+        print(f"[Curezy] ❌ Service load error: {e}")
+        traceback.print_exc()
+        raise
+
+    _initialized = True
+    print("[Curezy] ✅ Worker ready!")
+
+
+def _start_ollama():
+    print("[Curezy] Starting Ollama...")
+    subprocess.Popen(
+        ["ollama", "serve"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL
+    )
+    for i in range(30):
+        try:
+            import ollama as _ol
+            _ol.list()
+            print("[Curezy] ✅ Ollama running")
+            return
+        except Exception:
+            time.sleep(2)
+    raise RuntimeError("Ollama did not start within 60s")
 
 
 def _pull_if_needed(model: str):
-    import ollama as _ol
     try:
-        models = _ol.list()
-        names = [m.model for m in models.get("models", [])]
-        if not any(model.split(":")[0] in n for n in names):
-            print(f"[Curezy] Pulling {model} (first start)...")
+        import ollama as _ol
+        result = _ol.list()
+        # Handle both dict and object responses
+        models_list = result.get("models", []) if isinstance(result, dict) else getattr(result, "models", [])
+        names = []
+        for m in models_list:
+            name = m.get("model", "") if isinstance(m, dict) else getattr(m, "model", "")
+            names.append(name)
+
+        base = model.split(":")[0]
+        if not any(base in n for n in names):
+            print(f"[Curezy] Pulling {model}...")
             _ol.pull(model)
+            print(f"[Curezy] ✅ {model} pulled")
         else:
             print(f"[Curezy] ✅ {model} already cached")
     except Exception as e:
-        print(f"[Curezy] Pull error for {model}: {e}")
+        print(f"[Curezy] ⚠️ Pull warning for {model}: {e}")
 
-_start_ollama()
 
-# ── Load services (once per worker) ───────────────────────────────────────────
-print("[Curezy] Loading Curezy AURANET council...")
-from preprocessing.patient_preprocessor import PatientPreprocessor
-from agents.clinical_reasoner import ClinicalReasoner
-from confidence.uncertainty_engine import UncertaintyEngine
-import asyncio
-
-preprocessor      = PatientPreprocessor()
-reasoner          = ClinicalReasoner()
-uncertainty_engine = UncertaintyEngine()
-
-print("[Curezy] ✅ Council ready — Curezy AURIX + AURA + AURIS loaded")
+def _rename_models():
+    try:
+        script = os.path.join(os.path.dirname(__file__), "ollama_rename.py")
+        if os.path.exists(script):
+            subprocess.run([sys.executable, script], timeout=60, check=False)
+            print("[Curezy] ✅ Models branded")
+    except Exception as e:
+        print(f"[Curezy] ⚠️ Rename warning: {e}")
 
 
 # ── Main handler ──────────────────────────────────────────────────────────────
 
 def handler(job: dict) -> dict:
     """
-    RunPod calls this function for every incoming request.
+    RunPod calls this for every request.
 
-    Expected input format:
+    Input format:
     {
         "input": {
-            "mode": "council",           # "council" | "single"
-            "model_key": "medgemma",     # only needed for mode=single
+            "mode": "council",        # or "single"
+            "model_key": "medgemma",  # only for mode=single
             "patient_id": "p_001",
             "symptoms_text": "...",
             "medical_history_text": "",
@@ -106,48 +130,51 @@ def handler(job: dict) -> dict:
     }
     """
     try:
-        inp = job.get("input", {})
+        # Lazy init on first request
+        _init()
+
+        inp       = job.get("input", {})
         mode      = inp.get("mode", "council")
         model_key = inp.get("model_key", None)
 
-        # Build patient state
-        patient_state = preprocessor.process(
-            patient_id            = inp.get("patient_id", "runpod_patient"),
-            symptoms_text         = inp.get("symptoms_text", ""),
-            medical_history_text  = inp.get("medical_history_text", ""),
-            lab_text              = inp.get("lab_text", ""),
-            medications_text      = inp.get("medications_text", ""),
-            age                   = inp.get("age", None),
-            gender                = inp.get("gender", None),
+        patient_state = _preprocessor.process(
+            patient_id           = inp.get("patient_id", "runpod_patient"),
+            symptoms_text        = inp.get("symptoms_text", ""),
+            medical_history_text = inp.get("medical_history_text", ""),
+            lab_text             = inp.get("lab_text", ""),
+            medications_text     = inp.get("medications_text", ""),
+            age                  = inp.get("age", None),
+            gender               = inp.get("gender", None),
         )
 
-        # Run analysis
         if mode == "single" and model_key:
-            clinical_output = reasoner.analyze_single(patient_state.dict(), model_key)
+            clinical_output = _reasoner.analyze_single(patient_state.dict(), model_key)
         else:
-            clinical_output = asyncio.run(reasoner.analyze(patient_state.dict()))
+            import asyncio
+            clinical_output = asyncio.run(_reasoner.analyze(patient_state.dict()))
 
-        # Confidence report
-        confidence_report = uncertainty_engine.analyze_clinical_confidence(
+        confidence_report = _uncertainty.analyze_clinical_confidence(
             patient_state.dict(), clinical_output.dict()
         )
 
         return {
-            "success":          True,
-            "mode":             mode,
-            "patient_state":    patient_state.dict(),
+            "success":           True,
+            "mode":              mode,
+            "patient_state":     patient_state.dict(),
             "clinical_analysis": clinical_output.dict(),
             "confidence_report": confidence_report.dict(),
         }
 
     except Exception as e:
-        import traceback
         traceback.print_exc()
         return {
             "success": False,
             "error":   str(e),
+            "trace":   traceback.format_exc(),
         }
 
 
 # ── Start RunPod worker ───────────────────────────────────────────────────────
-runpod.serverless.start({"handler": handler})
+if __name__ == "__main__":
+    print("[Curezy] Starting RunPod serverless worker...")
+    runpod.serverless.start({"handler": handler})
