@@ -150,45 +150,8 @@ def handler(job: dict) -> dict:
         if mode == "single" and model_key:
             clinical_output = _reasoner.analyze_single(patient_state.dict(), model_key)
         else:
-            import asyncio
-            try:
-                loop = asyncio.get_running_loop()
-                # If we're already in an async context, RunPod's handler might be sync but called from async.
-                # Use run_coroutine_threadsafe or create a new event loop in a new thread if needed,
-                # but nested async usually just needs loop.run_until_complete if it's the main thread,
-                # though get_running_loop implies it's already running.
-                # The safest way in a Sync function running in an Async world is nest_asyncio or nested loops.
-                # Since we don't have nest_asyncio, we can create a new event loop and run it.
-                clinical_output = None
-            except RuntimeError:
-                # No running loop, asyncio.run is safe
-                clinical_output = asyncio.run(_reasoner.analyze(patient_state.dict()))
-            
-            if clinical_output is None:
-                # Fallback if a loop is already running (e.g. RunPod's internal serverlet)
-                # We can't use asyncio.run(). We must use an existing loop or thread.
-                import threading
-                def _run_in_thread(coro, result_box, error_box):
-                    new_loop = asyncio.new_event_loop()
-                    asyncio.set_event_loop(new_loop)
-                    try:
-                        result_box.append(new_loop.run_until_complete(coro))
-                    except Exception as ex:
-                        error_box.append(ex)
-                    finally:
-                        new_loop.close()
-                
-                res = []
-                errs = []
-                t = threading.Thread(target=_run_in_thread, args=(_reasoner.analyze(patient_state.dict()), res, errs))
-                t.start()
-                t.join()
-                
-                if errs:
-                    raise errs[0]
-                if not res:
-                    raise RuntimeError("Async reasoner returned no result and no error.")
-                clinical_output = res[0]
+            # _reasoner.analyze() is a synchronous method, it manages its own async internally
+            clinical_output = _reasoner.analyze(patient_state.dict())
 
         confidence_report = _uncertainty.analyze_clinical_confidence(
             patient_state.dict(), clinical_output.dict()
