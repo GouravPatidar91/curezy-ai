@@ -18,8 +18,8 @@ aiohttp>=3.9.0
 # Database
 supabase>=2.3.0
 
-# Medical / NLP
-spacy>=3.7.0
+# Medical / NLP (Optional on Render, Mandatory on RunPod)
+# spacy>=3.7.0  <-- removed to fix Render build
 langchain-core>=0.1.0
 
 # Security
@@ -41,5 +41,5 @@ pytesseract>=0.3.10
 # Missing dependencies for RunPod deployment
 pydicom>=2.4.4
 opencv-python-headless>=4.9.0.80
-scispacy>=0.5.4
+# scispacy>=0.5.4 <-- removed to fix Render build
 resend>=0.8.0

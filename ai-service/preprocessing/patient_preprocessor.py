@@ -12,6 +12,17 @@ import cv2
 from pydantic import BaseModel
 from typing import List, Dict, Any
 
+# Optional heavy dependencies for Render compatibility
+try:
+    import spacy
+except ImportError:
+    spacy = None
+
+try:
+    import scispacy
+except ImportError:
+    scispacy = None
+
 
 # ─────────────────────────────────────────
 # DATA MODELS
@@ -68,20 +79,27 @@ class SpacyMedicalExtractor:
         }
 
     def _load_model(self):
-        import spacy
+        if spacy is None:
+            print("[Spacy] library not installed. Falling back to keyword engine.")
+            self.nlp = False
+            return
+
         if self.nlp is None:
             try:
                 self.nlp = spacy.load("en_core_web_trf")
                 
                 # Attempt to inject ScispaCy pipeline components for clinical entity linking
-                try:
-                    from scispacy.abbreviation import AbbreviationDetector
-                    from scispacy.linking import EntityLinker
-                    
-                    self.nlp.add_pipe("abbreviation_detector")
-                    self.nlp.add_pipe("scispacy_linker", config={"resolve_abbreviations": True, "linker_name": "umls"})
-                    print("[Spacy] Successfully injected ScispaCy UMLS linker into core pipeline.")
-                except ImportError:
+                if scispacy:
+                    try:
+                        from scispacy.abbreviation import AbbreviationDetector
+                        from scispacy.linking import EntityLinker
+                        
+                        self.nlp.add_pipe("abbreviation_detector")
+                        self.nlp.add_pipe("scispacy_linker", config={"resolve_abbreviations": True, "linker_name": "umls"})
+                        print("[Spacy] Successfully injected ScispaCy UMLS linker into core pipeline.")
+                    except (ImportError, Exception):
+                        print("[Spacy] ScispaCy components failed to load. Using standard core pipeline.")
+                else:
                     print("[Spacy] ScispaCy not found. Using standard core pipeline.")
 
             except OSError:

@@ -21,7 +21,9 @@ RUN curl -fsSL https://ollama.com/install.sh | sh
 # ── Python dependencies ────────────────────────────────────────
 COPY ai-service/requirements.txt .
 RUN pip install --no-cache-dir runpod ollama \
-    && pip install --no-cache-dir -r requirements.txt
+    && pip install --no-cache-dir -r requirements.txt \
+    && pip install --no-cache-dir spacy scispacy \
+    && pip install --no-cache-dir https://s3-us-west-2.amazonaws.com/ai2-s2-scispacy/releases/v0.5.4/en_core_sci_scibert-0.5.4.tar.gz
 
 # ── Copy codebase ──────────────────────────────────────────────
 COPY ai-service/ .
