@@ -12,7 +12,7 @@ WORKDIR /app
 
 # ── System deps ────────────────────────────────────────────────
 RUN apt-get update && apt-get install -y \
-    curl wget git zstd \
+    curl wget git zstd tesseract-ocr libgl1 \
     && rm -rf /var/lib/apt/lists/*
 
 # ── Install Ollama (install.sh works reliably on Linux) ───────
