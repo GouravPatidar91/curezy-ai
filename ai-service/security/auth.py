@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 from typing import Optional
 from jose import JWTError, jwt
-from passlib.context import CryptContext
+import bcrypt  # Direct bcrypt to avoid passlib issues on Render
 from fastapi import Depends, HTTPException, Header, Request, Security
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import os
@@ -13,12 +13,26 @@ SECRET_KEY = os.getenv("JWT_SECRET_KEY", "curezy-super-secret-change-in-producti
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_HOURS = 24
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto", bcrypt__rounds=12)
 bearer_scheme = HTTPBearer()
 
-# ── Pre-hashed passwords (generated once, not at import time)
-_DOCTOR_HASH = pwd_context.hash("doctor123")
-_ADMIN_HASH  = pwd_context.hash("admin123")
+def get_password_hash(password: str) -> str:
+    """Hash a password using bcrypt directly."""
+    salt = bcrypt.gensalt(rounds=12)
+    return bcrypt.hashpw(password.encode('utf-8'), salt).decode('utf-8')
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    """Verify a plain password against a hashed password."""
+    try:
+        return bcrypt.checkpw(
+            plain_password.encode('utf-8'), 
+            hashed_password.encode('utf-8')
+        )
+    except Exception:
+        return False
+
+# ── Pre-hashed passwords
+_DOCTOR_HASH = get_password_hash("doctor123")
+_ADMIN_HASH  = get_password_hash("admin123")
 
 USERS_DB = {
     "doctor_001": {

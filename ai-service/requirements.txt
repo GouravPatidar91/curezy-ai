@@ -24,7 +24,9 @@ langchain-core>=0.1.0
 
 # Security
 python-jose[cryptography]>=3.3.0
-passlib[bcrypt]>=1.7.4
+bcrypt>=4.0.0
+cryptography>=41.0.0
+cffi>=1.15.0
 
 # Document parsing
 PyPDF2>=3.0.0
