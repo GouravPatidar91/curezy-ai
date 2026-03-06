@@ -319,8 +319,10 @@ export default function Landing() {
             <footer className="relative z-20 border-t border-white/10 bg-black pt-20 pb-10">
                 <div className="max-w-7xl mx-auto px-6 md:px-12 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-12 lg:gap-8 mb-16">
                     <div className="lg:col-span-2">
-                        <div className="flex items-center gap-2 mb-6">
-                            <Sparkles className="text-white w-6 h-6" />
+                        <div className="flex items-center gap-3 mb-6">
+                            <div className="w-8 h-8 rounded-full overflow-hidden flex items-center justify-center border border-white/20 shadow-[0_0_15px_rgba(255,255,255,0.1)]">
+                                <img src="/curezy logo.png" alt="Curezy AI Logo" className="w-full h-full object-cover" />
+                            </div>
                             <span className="text-2xl font-bold tracking-tight">Curezy AI</span>
                         </div>
                         <p className="text-gray-400 mb-8 max-w-sm">Medicine for the future. Diagnosing complexities at the speed of thought.</p>

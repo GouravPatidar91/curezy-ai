@@ -96,10 +96,18 @@ export default function UnifiedPipeline() {
     const containerRef = useRef(null);
     const { scrollYProgress } = useScroll({ target: containerRef, offset: ["start start", "end end"] });
 
+    const [isMobile, setIsMobile] = useState(false);
+    useEffect(() => {
+        const checkMobile = () => setIsMobile(window.innerWidth < 1024);
+        checkMobile();
+        window.addEventListener('resize', checkMobile);
+        return () => window.removeEventListener('resize', checkMobile);
+    }, []);
+
     // PHASE 1 (0.00 - 0.20): Mockup Enter
     const mockupScale = useTransform(scrollYProgress, [0, 0.15], [0.8, 1]);
     const mockupOpacity = useTransform(scrollYProgress, [0, 0.15], [0, 1]);
-    const mockupY = useTransform(scrollYProgress, [0, 0.15], [100, 0]);
+    const mockupY = useTransform(scrollYProgress, [0, 0.15, 0.45, 0.55], [100, 0, 0, isMobile ? 120 : 0]);
 
     // PHASE 2 (0.20 - 0.40): Typing
     const typeLength = useTransform(scrollYProgress, [0.15, 0.35], [0, FULL_PROMPT.length]);
@@ -110,7 +118,7 @@ export default function UnifiedPipeline() {
 
     // PHASE 3 (0.45 - 0.55): THE SHIFT -> Shrink width and right-align!
     // We animate from exactly matching max-w-5xl (which is 1024px) down to 58.333% (7/12 grid cols)
-    const mockupWidth = useTransform(scrollYProgress, [0.45, 0.55], ["100%", "58.333%"]);
+    const mockupWidth = useTransform(scrollYProgress, [0.45, 0.55], ["100%", isMobile ? "92%" : "58.333%"]);
 
     // Left panel fades in and slides 
     const leftPanelOpacity = useTransform(scrollYProgress, [0.5, 0.6], [0, 1]);
@@ -125,13 +133,28 @@ export default function UnifiedPipeline() {
     // PHASE 4 (0.60 - 1.00): 3 Steps Progress
     const [activeStep, setActiveStep] = useState(0);
     useMotionValueEvent(scrollYProgress, "change", (latest) => {
-        if (latest < 0.73) setActiveStep(0);
-        else if (latest < 0.86) setActiveStep(1);
+        if (latest < 0.7) setActiveStep(0);
+        else if (latest < 0.85) setActiveStep(1);
         else setActiveStep(2);
     });
 
     const pipelineFill = useTransform(scrollYProgress, [0.6, 1], ["0%", "80%"]);
     const starTop = useTransform(scrollYProgress, [0.6, 1], ["10%", "90%"]);
+
+    // Pipeline Step Opacities (Defined at top level to avoid Rule of Hooks violation)
+    const step0Op = useTransform(scrollYProgress, [0.52, 0.62, 0.72], [0.3, 1, 0.3]);
+    const step1Op = useTransform(scrollYProgress, [0.65, 0.77, 0.90], [0.3, 1, 0.3]);
+    const step2Op = useTransform(scrollYProgress, [0.82, 0.92, 1.05], [0.3, 1, 0.3]);
+    const stepOps = [step0Op, step1Op, step2Op];
+
+    const intakePointerEvents = useTransform(intakeContentOpacity, v => v > 0 ? "auto" : "none");
+    const visualsPointerEvents = useTransform(pipelineVisualsOpacity, v => v > 0 ? "auto" : "none");
+
+    // Pipeline Step Colors (Defined at top level to avoid Rule of Hooks violation)
+    const step0Color = useTransform(step0Op, [0.3, 1], ['#6b7280', '#ffffff']);
+    const step1Color = useTransform(step1Op, [0.3, 1], ['#6b7280', '#ffffff']);
+    const step2Color = useTransform(step2Op, [0.3, 1], ['#6b7280', '#ffffff']);
+    const stepColors = [step0Color, step1Color, step2Color];
 
     return (
         <section ref={containerRef} id="pipeline" className="relative h-[600vh] w-full">
@@ -140,43 +163,70 @@ export default function UnifiedPipeline() {
 
                     {/* Left Column (Fades in during Phase 3) */}
                     <motion.div
-                        style={{ opacity: leftPanelOpacity, x: leftPanelX }}
-                        className="absolute left-6 w-[41.666%] h-[520px] flex flex-col justify-center pointer-events-none z-0 hidden lg:flex"
+                        style={{ opacity: leftPanelOpacity, x: isMobile ? 0 : leftPanelX }}
+                        className={`absolute flex flex-col justify-center pointer-events-none z-0 
+                            ${isMobile
+                                ? 'top-12 left-0 w-full px-6 h-auto text-center items-center'
+                                : 'left-6 w-[41.666%] h-[520px] items-start'}`}
                     >
-                        <div className="mb-8">
-                            <h3 className="text-[#FF7A00] font-bold text-lg mb-2">AI Pipeline</h3>
-                            <h2 className="text-4xl lg:text-5xl font-bold tracking-tight text-white leading-tight">Diagnostics,<br />end-to-end.</h2>
+                        <div className={isMobile ? "mb-4" : "mb-8"}>
+                            <h3 className="text-[#FF7A00] font-bold text-sm lg:text-lg mb-1 lg:mb-2 text-center lg:text-left">AI Pipeline</h3>
+                            <h2 className="text-2xl lg:text-5xl font-bold tracking-tight text-white leading-tight text-center lg:text-left">Diagnostics,<br className="hidden lg:block" /> {isMobile && " "} end-to-end.</h2>
                         </div>
 
-                        <div className="relative pl-12 h-full py-8">
-                            <div className="absolute left-[3px] top-[10%] bottom-[10%] w-0.5 bg-white/10" />
-                            <motion.div
-                                className="absolute left-[3px] top-[10%] w-0.5 bg-gradient-to-b from-[#FF7A00] to-[rgba(255,122,0,0.4)] to-transparent origin-top"
-                                style={{ height: pipelineFill }}
-                            />
-                            <motion.div
-                                className="absolute left-[-6px] w-5 h-5 border rounded-sm rotate-45 flex items-center justify-center bg-[#050510] border-[#FF7A00] shadow-[0_0_10px_rgba(255,122,0,0.5)] z-10"
-                                style={{ top: starTop }}
-                            >
-                                <div className="w-1.5 h-1.5 bg-white rounded-full" />
-                            </motion.div>
+                        <div className={`relative h-full ${isMobile ? 'py-4 px-2' : 'pl-12 py-8'}`}>
+                            {!isMobile && (
+                                <>
+                                    <div className="absolute left-[3px] top-[10%] bottom-[10%] w-0.5 bg-white/10" />
+                                    <motion.div
+                                        className="absolute left-[3px] top-[10%] w-0.5 bg-gradient-to-b from-[#FF7A00] to-[rgba(255,122,0,0.4)] to-transparent origin-top"
+                                        style={{ height: pipelineFill }}
+                                    />
+                                    <motion.div
+                                        className="absolute left-[-6px] w-5 h-5 border rounded-sm rotate-45 flex items-center justify-center bg-[#050510] border-[#FF7A00] shadow-[0_0_10px_rgba(255,122,0,0.5)] z-10"
+                                        style={{ top: starTop }}
+                                    >
+                                        <div className="w-1.5 h-1.5 bg-white rounded-full" />
+                                    </motion.div>
+                                </>
+                            )}
 
-                            <div className="space-y-8">
-                                {PIPELINE_STEPS.map((step, idx) => {
-                                    const stepOp = useTransform(scrollYProgress,
-                                        [0.6 + (idx - 0.5) * 0.13, 0.6 + idx * 0.13, 0.6 + (idx + 0.5) * 0.13],
-                                        [0.3, 1, 0.3]
-                                    );
-                                    const stepColor = useTransform(stepOp, [0.3, 1], ['#6b7280', '#ffffff']);
-                                    return (
-                                        <motion.div key={idx} style={{ opacity: stepOp }} className="relative">
-                                            <motion.h4 style={{ color: stepColor }} className="text-2xl font-bold mb-3 transition-colors duration-300">
-                                                {step.title}
-                                            </motion.h4>
-                                            <p className="text-gray-400 text-lg leading-relaxed">{step.desc}</p>
-                                        </motion.div>
-                                    )
-                                })}
+                            <div className={isMobile ? "relative h-32 w-full" : "space-y-8"}>
+                                {isMobile ? (
+                                    <div className="flex flex-col items-center justify-center w-full">
+                                        <AnimatePresence mode="wait">
+                                            <motion.div
+                                                key={activeStep}
+                                                initial={{ opacity: 0, y: 10 }}
+                                                animate={{ opacity: 1, y: 0 }}
+                                                exit={{ opacity: 0, y: -10 }}
+                                                transition={{ duration: 0.4 }}
+                                                className="text-center px-4"
+                                            >
+                                                <h4 className="text-xl font-bold text-white mb-2">
+                                                    {PIPELINE_STEPS[activeStep].title}
+                                                </h4>
+                                                <p className="text-gray-400 text-sm leading-relaxed max-w-xs mx-auto">
+                                                    {PIPELINE_STEPS[activeStep].desc}
+                                                </p>
+                                            </motion.div>
+                                        </AnimatePresence>
+                                    </div>
+                                ) : (
+                                    PIPELINE_STEPS.map((step, idx) => {
+                                        const stepOp = stepOps[idx];
+                                        const stepColor = stepColors[idx];
+
+                                        return (
+                                            <motion.div key={idx} style={{ opacity: stepOp }} className="relative">
+                                                <motion.h4 style={{ color: stepColor }} className="text-2xl font-bold mb-3 transition-colors duration-300">
+                                                    {step.title}
+                                                </motion.h4>
+                                                <p className="text-gray-400 text-lg leading-relaxed">{step.desc}</p>
+                                            </motion.div>
+                                        )
+                                    })
+                                )}
                             </div>
                         </div>
                     </motion.div>
@@ -189,7 +239,7 @@ export default function UnifiedPipeline() {
                             opacity: mockupOpacity,
                             y: mockupY
                         }}
-                        className="h-[520px] bg-[#0a0a15] rounded-[2rem] border border-white/10 shadow-[0_0_100px_rgba(77,77,255,0.1)] flex flex-col overflow-hidden relative z-10 mx-auto lg:mr-0"
+                        className={`${isMobile ? 'h-[400px]' : 'h-[520px]'} bg-[#0a0a15] rounded-[2rem] border border-white/10 shadow-[0_0_100px_rgba(77,77,255,0.1)] flex flex-col overflow-hidden relative z-10 mx-auto lg:mr-0`}
                     >
                         {/* Browser header */}
                         <div className="h-12 border-b border-white/5 bg-[#050510]/50 flex items-center px-4 gap-4 z-20 shrink-0 backdrop-blur-md">
@@ -208,7 +258,7 @@ export default function UnifiedPipeline() {
                         <div className="flex-1 relative">
                             {/* 1. Intake Session */}
                             <motion.div
-                                style={{ opacity: intakeContentOpacity, pointerEvents: useTransform(intakeContentOpacity, v => v > 0 ? "auto" : "none") }}
+                                style={{ opacity: intakeContentOpacity, pointerEvents: intakePointerEvents }}
                                 className="absolute inset-0 flex flex-col items-center justify-center p-8 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] bg-opacity-[0.02]"
                             >
                                 <div className="w-full max-w-3xl bg-[#050510] border border-white/10 rounded-3xl p-8 lg:p-12 shadow-2xl relative min-h-[220px] flex flex-col items-center text-center justify-center">
@@ -238,7 +288,7 @@ export default function UnifiedPipeline() {
 
                             {/* 2. Pipeline Visuals */}
                             <motion.div
-                                style={{ opacity: pipelineVisualsOpacity, pointerEvents: useTransform(pipelineVisualsOpacity, v => v > 0 ? "auto" : "none") }}
+                                style={{ opacity: pipelineVisualsOpacity, pointerEvents: visualsPointerEvents }}
                                 className="absolute inset-0 bg-[#0a0a15]"
                             >
                                 <PipelineVisuals activeStep={activeStep} />

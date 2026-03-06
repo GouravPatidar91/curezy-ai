@@ -135,21 +135,21 @@ export default function AnimatedRoadmap() {
     });
 
     return (
-        <section id="roadmap" ref={containerRef} className="relative h-[400vh]">
+        <section id="roadmap" ref={containerRef} className="relative h-[400vh] mb-24">
             <div className="sticky top-0 h-screen w-full flex items-center justify-center overflow-hidden">
-                <div className="w-full max-w-6xl mx-auto px-6 md:px-12 grid grid-cols-1 md:grid-cols-2 gap-12 md:gap-20 items-center">
+                <div className="w-full max-w-6xl mx-auto px-6 md:px-12 grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-20 items-center pt-32 md:pt-0 pb-16 md:pb-0">
 
                     {/* Left Side: Headlines and List */}
-                    <div>
-                        <h3 className="text-[#FF7A00] font-bold text-xl mb-4">Roadmap</h3>
-                        <h2 className="text-4xl md:text-5xl font-bold tracking-tight mb-6 leading-tight text-white">
+                    <div className="mt-0 md:mt-0">
+                        <h3 className="text-[#FF7A00] font-bold text-lg md:text-xl mb-1 md:mb-4">Roadmap</h3>
+                        <h2 className="text-3xl md:text-5xl font-bold tracking-tight mb-2 md:mb-6 leading-tight text-white">
                             The tool that evolves<br />and grows with you.
                         </h2>
-                        <p className="text-gray-400 text-lg mb-12">
+                        <p className="text-gray-400 text-base md:text-lg mb-4 md:mb-12">
                             Curezy AI is continually learning. Here are features actively in development for future versions:
                         </p>
 
-                        <div className="space-y-6 relative border-l-2 border-white/10 ml-3 pl-8">
+                        <div className="space-y-4 md:space-y-6 relative border-l-2 border-white/10 ml-3 pl-8">
                             {ROADMAP.map((item, i) => (
                                 <div
                                     key={i}
@@ -198,7 +198,7 @@ export default function AnimatedRoadmap() {
                     </div>
 
                     {/* Right Side: Visual Card Overlay */}
-                    <div className="flex items-center justify-center relative w-full aspect-square md:aspect-auto md:h-[500px]">
+                    <div className="flex items-center justify-center relative w-full aspect-square md:aspect-auto md:h-[500px] mt-0 md:mt-0">
                         <AnimatePresence mode="wait">
                             <motion.div
                                 key={activeIndex}
@@ -206,7 +206,7 @@ export default function AnimatedRoadmap() {
                                 animate={{ opacity: 1, scale: 1, y: 0 }}
                                 exit={{ opacity: 0, scale: 0.95, y: -20 }}
                                 transition={{ duration: 0.5, ease: "easeOut" }}
-                                className="absolute w-full max-w-sm aspect-square md:aspect-[4/5] bg-gradient-to-br from-[#1a1a3a] to-black border border-white/10 rounded-3xl p-8 overflow-hidden shadow-2xl flex flex-col justify-between"
+                                className="absolute w-full max-w-[280px] md:max-w-sm aspect-square md:aspect-[4/5] bg-gradient-to-br from-[#1a1a3a] to-black border border-white/10 rounded-3xl p-6 md:p-8 overflow-hidden shadow-2xl flex flex-col justify-between"
                             >
                                 <div className="absolute -inset-10 bg-[#FF7A00]/10 blur-3xl rounded-full opacity-50 mix-blend-screen transition-all duration-1000" />
 
