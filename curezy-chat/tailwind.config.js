@@ -3,10 +3,23 @@ module.exports = {
     theme: {
         extend: {
             colors: {
-                background: "#050505",
-                surface: "#111111",
-                "surface-light": "#1a1a1a",
-                border: "#333333",
+                background: "#212121",
+                surface: "#171717",
+                "surface-light": "#2f2f2f",
+                "surface-hover": "#3a3a3a",
+                border: "#424242",
+                // Chat UI primary accent
+                accent: {
+                    green: "#10a37f",
+                    red: "#ef4444",
+                    // Keep for non-chat pages (Landing, PendingAccess, etc.)
+                    purple: "#7b2cbf",
+                    blue: "#3a0ca3",
+                },
+                "t-primary": "#ececec",
+                "t-secondary": "#b4b4b4",
+                "t-tertiary": "#676767",
+                // Keep primary ramp for non-chat pages (FineTune, ApiKeys, MedicalIntakeFlow, etc.)
                 primary: {
                     50: "#f0f9ff",
                     100: "#e0f2fe",
@@ -20,24 +33,12 @@ module.exports = {
                     900: "#0c4a6e",
                     950: "#082f49",
                 },
-                accent: {
-                    red: "#ff3333",
-                    purple: "#7b2cbf",
-                    blue: "#3a0ca3",
-                }
             },
             fontFamily: {
                 sans: ["Inter", "sans-serif"]
             },
-            backgroundImage: {
-                'radial-glow': 'radial-gradient(circle at center, var(--tw-gradient-stops))',
-                'glass-gradient': 'linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.01) 100%)',
-                'neon-gradient': 'linear-gradient(90deg, #ff3333 0%, #7b2cbf 50%, #3a0ca3 100%)',
-            },
             boxShadow: {
                 'neon': '0 0 20px rgba(118, 44, 191, 0.5), 0 0 40px rgba(118, 44, 191, 0.3)',
-                'neon-blue': '0 0 20px rgba(14, 165, 233, 0.5), 0 0 40px rgba(14, 165, 233, 0.3)',
-                'glass': '0 8px 32px 0 rgba(0, 0, 0, 0.3)',
             }
         }
     },

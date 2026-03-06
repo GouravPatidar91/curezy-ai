@@ -33,6 +33,8 @@ export const startChat = () => api.post('/chat/start')
 export const sendMessage = (convId, msg, selectedModel = null) =>
     analysisApi.post('/chat/message', { conversation_id: convId, message: msg, selected_model: selectedModel })
 
+export const resumeChat = (convId) => api.post('/chat/resume', { conversation_id: convId })
+
 export const stageSubmit = (convId, stage, data, selectedModel = null) =>
     api.post('/chat/stage-submit', { conversation_id: convId, stage, data, selected_model: selectedModel })
 export const skipStage = (convId, stage, selectedModel = null) =>

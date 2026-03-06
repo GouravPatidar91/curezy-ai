@@ -4,9 +4,9 @@ import { Star, CheckCircle, AlertCircle, ChevronDown, ChevronUp } from 'lucide-r
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
 /**
- * FeedbackBar — Phase 2 Feedback Collection Component
+ * FeedbackBar -- Phase 2 Feedback Collection Component
  * Shown below the AnalysisCard after council results are displayed.
- * Collects 1–5 star rating, optional doctor verification, and a correction.
+ * Collects 1-5 star rating, optional doctor verification, and a correction.
  */
 export default function FeedbackBar({ sessionId, patientId, topDiagnosis }) {
     const [rating, setRating] = useState(0)
@@ -51,12 +51,12 @@ export default function FeedbackBar({ sessionId, patientId, topDiagnosis }) {
 
     if (submitted) {
         return (
-            <div className="flex items-center gap-2 px-4 py-3 rounded-2xl bg-green-500/10 border border-green-500/20 text-green-400 text-sm mt-3 animate-fade-in">
+            <div className="flex items-center gap-2 text-sm text-accent-green mt-4">
                 <CheckCircle size={16} className="flex-shrink-0" />
-                <span className="font-semibold">Thank you for your feedback!</span>
+                <span className="font-medium">Thank you for your feedback!</span>
                 {doctorVerified && (
-                    <span className="ml-auto text-xs bg-green-500/20 px-2 py-0.5 rounded-full">
-                        Case saved to medical library ✓
+                    <span className="ml-auto text-xs text-accent-green/70">
+                        Case saved to medical library
                     </span>
                 )}
             </div>
@@ -64,10 +64,10 @@ export default function FeedbackBar({ sessionId, patientId, topDiagnosis }) {
     }
 
     return (
-        <div className="mt-3 rounded-2xl border border-white/10 bg-surface/40 backdrop-blur-sm overflow-hidden">
+        <div className="mt-4 border-t border-[#2f2f2f] pt-4 max-w-2xl mx-auto">
             {/* Main row */}
-            <div className="flex items-center gap-3 px-4 py-3">
-                <span className="text-xs text-gray-400 font-semibold whitespace-nowrap">Was this helpful?</span>
+            <div className="flex items-center gap-3">
+                <span className="text-xs text-[#676767] font-medium whitespace-nowrap">Was this helpful?</span>
 
                 {/* Star rating */}
                 <div className="flex gap-0.5">
@@ -82,10 +82,10 @@ export default function FeedbackBar({ sessionId, patientId, topDiagnosis }) {
                             title={`${star} star${star > 1 ? 's' : ''}`}
                         >
                             <Star
-                                size={18}
+                                size={16}
                                 className={`transition-colors ${(hovered || rating) >= star
                                         ? 'fill-yellow-400 text-yellow-400'
-                                        : 'text-gray-600'
+                                        : 'text-[#424242]'
                                     }`}
                             />
                         </button>
@@ -93,57 +93,57 @@ export default function FeedbackBar({ sessionId, patientId, topDiagnosis }) {
                 </div>
 
                 {rating > 0 && !expanded && (
-                    <span className="text-xs text-gray-400 italic">
-                        {rating <= 2 ? 'Sorry to hear that. ' : rating === 3 ? 'Thank you. ' : 'Great! '}
+                    <span className="text-xs text-[#676767] italic">
+                        {rating <= 2 ? 'Sorry to hear that.' : rating === 3 ? 'Thank you.' : 'Great!'}
                     </span>
                 )}
 
-                {/* Expand/collapse detail form */}
+                {/* Expand/collapse */}
                 <button
                     onClick={() => setExpanded(p => !p)}
-                    className="ml-auto text-gray-500 hover:text-gray-300 transition-colors"
+                    className="ml-auto text-[#676767] hover:text-[#b4b4b4] transition-colors"
                     title={expanded ? 'Collapse' : 'Add details'}
                 >
                     {expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                 </button>
 
-                {/* Submit if no expansion needed */}
+                {/* Quick submit */}
                 {!expanded && rating > 0 && (
                     <button
                         id="feedback-submit"
                         onClick={handleSubmit}
                         disabled={submitting}
-                        className="text-xs bg-accent-blue hover:bg-accent-purple text-white px-3 py-1.5 rounded-lg font-semibold transition-all disabled:opacity-50 ml-1"
+                        className="text-xs bg-accent-green hover:bg-[#0d8c6b] text-white px-3 py-1.5 rounded-lg font-medium transition-colors disabled:opacity-50 ml-1"
                     >
-                        {submitting ? 'Saving…' : 'Submit'}
+                        {submitting ? 'Saving...' : 'Submit'}
                     </button>
                 )}
             </div>
 
             {/* Expanded detail form */}
             {expanded && (
-                <div className="px-4 pb-4 border-t border-white/5 space-y-3 pt-3">
+                <div className="mt-3 pt-3 border-t border-[#2f2f2f] space-y-3">
 
                     {/* Doctor verification toggle */}
                     <label className="flex items-center gap-2 cursor-pointer group w-fit">
                         <div
                             onClick={() => setDoctorVerified(p => !p)}
-                            className={`w-9 h-5 rounded-full transition-colors ${doctorVerified ? 'bg-green-500' : 'bg-gray-600'} relative flex-shrink-0`}
+                            className={`w-9 h-5 rounded-full transition-colors ${doctorVerified ? 'bg-accent-green' : 'bg-[#424242]'} relative flex-shrink-0`}
                         >
                             <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${doctorVerified ? 'translate-x-4' : 'translate-x-0.5'}`} />
                         </div>
-                        <span className="text-xs text-gray-300 group-hover:text-white transition-colors font-medium">
+                        <span className="text-xs text-[#b4b4b4] group-hover:text-white transition-colors font-medium">
                             Doctor-verified diagnosis
                         </span>
                         {doctorVerified && (
-                            <span className="text-xs text-green-400 font-bold">→ Saved to training library</span>
+                            <span className="text-xs text-accent-green">Saved to training library</span>
                         )}
                     </label>
 
                     {/* Actual diagnosis correction */}
                     <div>
-                        <label className="text-xs text-gray-400 mb-1 block font-semibold">
-                            Correct diagnosis <span className="text-gray-600">(optional)</span>
+                        <label className="text-xs text-[#676767] mb-1 block font-medium">
+                            Correct diagnosis <span className="text-[#424242]">(optional)</span>
                         </label>
                         <input
                             id="feedback-correction"
@@ -151,14 +151,14 @@ export default function FeedbackBar({ sessionId, patientId, topDiagnosis }) {
                             value={correction}
                             onChange={e => setCorrection(e.target.value)}
                             placeholder={`AI said: "${topDiagnosis || 'Unknown'}"`}
-                            className="w-full bg-surface/50 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-accent-blue focus:ring-1 focus:ring-accent-blue/20 transition-all"
+                            className="w-full bg-[#2f2f2f] border border-[#424242] rounded-lg px-3 py-2 text-sm text-white placeholder-[#676767] focus:outline-none focus:border-accent-green transition-colors"
                         />
                     </div>
 
                     {/* Additional notes */}
                     <div>
-                        <label className="text-xs text-gray-400 mb-1 block font-semibold">
-                            Notes <span className="text-gray-600">(optional)</span>
+                        <label className="text-xs text-[#676767] mb-1 block font-medium">
+                            Notes <span className="text-[#424242]">(optional)</span>
                         </label>
                         <textarea
                             id="feedback-notes"
@@ -166,7 +166,7 @@ export default function FeedbackBar({ sessionId, patientId, topDiagnosis }) {
                             onChange={e => setNotes(e.target.value)}
                             placeholder="What was correct or incorrect about this assessment?"
                             rows={2}
-                            className="w-full bg-surface/50 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-gray-600 resize-none focus:outline-none focus:border-accent-blue focus:ring-1 focus:ring-accent-blue/20 transition-all"
+                            className="w-full bg-[#2f2f2f] border border-[#424242] rounded-lg px-3 py-2 text-sm text-white placeholder-[#676767] resize-none focus:outline-none focus:border-accent-green transition-colors"
                         />
                     </div>
 
@@ -181,18 +181,18 @@ export default function FeedbackBar({ sessionId, patientId, topDiagnosis }) {
                             id="feedback-submit-expanded"
                             onClick={handleSubmit}
                             disabled={submitting || !rating}
-                            className="bg-accent-blue hover:bg-accent-purple text-white text-xs font-bold px-4 py-2 rounded-xl transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                            className="bg-accent-green hover:bg-[#0d8c6b] text-white text-xs font-medium px-4 py-2 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                         >
-                            {submitting ? 'Saving…' : 'Submit Feedback'}
+                            {submitting ? 'Saving...' : 'Submit Feedback'}
                         </button>
                         <button
                             onClick={() => setExpanded(false)}
-                            className="text-xs text-gray-500 hover:text-gray-300 transition-colors"
+                            className="text-xs text-[#676767] hover:text-[#b4b4b4] transition-colors"
                         >
                             Cancel
                         </button>
                         {rating === 0 && (
-                            <span className="text-xs text-gray-600 italic">Select a rating first</span>
+                            <span className="text-xs text-[#676767] italic">Select a rating first</span>
                         )}
                     </div>
                 </div>

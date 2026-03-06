@@ -1,118 +1,131 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Send, Settings2, Mic, MicOff, Phone, Plus, X, FileText, Loader2, Check, Image, Upload, Cpu } from 'lucide-react'
+import { Send, Mic, MicOff, Phone, Plus, X, FileText, Loader2, Check, Image, Paperclip, ChevronDown, ArrowUp, Brain, Search, Activity, Heart, ShieldCheck } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../config/supabase'
-import { startChat, sendMessage, uploadReport } from '../api/client'
+import { startChat, sendMessage, uploadReport, resumeChat } from '../api/client'
 import Sidebar from '../components/Sidebar'
 import MessageBubble from '../components/MessageBubble'
 import AnalysisCard from '../components/AnalysisCard'
-import DoctorReferral from '../components/DoctorReferral'
 import FeedbackBar from '../components/FeedbackBar'
+import DoctorReferral from '../components/DoctorReferral'
+
+// ── Helpers ──────────────────────────────────────────────────────────
 
 // ── Stage badge ───────────────────────────────────────────────────────
 
 const STAGE_MAP = {
-    greeting: { label: 'Starting', color: 'bg-white/10 text-gray-500' },
-    chief_complaint: { label: 'Chief Complaint', color: 'bg-indigo-500/20 text-indigo-300' },
-    symptom_detail: { label: 'Symptoms', color: 'bg-yellow-500/20 text-yellow-300' },
-    associated_symptoms: { label: 'Associated', color: 'bg-orange-500/20 text-orange-300' },
-    timeline: { label: 'Timeline', color: 'bg-amber-500/20 text-amber-300' },
-    history: { label: 'History', color: 'bg-purple-500/20 text-purple-300' },
-    medications: { label: 'Medications', color: 'bg-blue-500/20 text-blue-300' },
-    reports: { label: 'Reports', color: 'bg-teal-500/20 text-teal-300' },
-    imaging: { label: 'Imaging', color: 'bg-cyan-500/20 text-cyan-300' },
-    confirming: { label: 'Ready to Proceed?', color: 'bg-emerald-500/20 text-emerald-300' },
-    analyzing: { label: 'Analyzing…', color: 'bg-accent-blue/20 text-accent-blue animate-pulse' },
-    results: { label: '✓ Complete', color: 'bg-green-500/20 text-green-300' },
+    greeting: { label: 'Starting' },
+    chief_complaint: { label: 'Chief Complaint' },
+    symptom_detail: { label: 'Symptoms' },
+    associated_symptoms: { label: 'Associated' },
+    timeline: { label: 'Timeline' },
+    history: { label: 'History' },
+    medications: { label: 'Medications' },
+    reports: { label: 'Reports' },
+    imaging: { label: 'Imaging' },
+    confirming: { label: 'Ready to Proceed?' },
+    analyzing: { label: 'Analyzing...' },
+    results: { label: 'Complete' },
 }
 
 function StageBadge({ stage }) {
     const s = STAGE_MAP[stage] || STAGE_MAP.greeting
-    return <span className={`text-xs px-3 py-1 rounded-full font-medium ${s.color}`}>{s.label}</span>
+    const isAnalyzing = stage === 'analyzing'
+    const isResults = stage === 'results'
+    const baseClass = 'text-[11px] px-2 py-0.5 rounded font-medium'
+    const colorClass = isAnalyzing
+        ? 'bg-accent-green/10 text-accent-green animate-pulse'
+        : isResults
+            ? 'bg-accent-green/10 text-accent-green'
+            : 'bg-[#2a2a2a] text-[#888]'
+    return <span className={`${baseClass} ${colorClass}`}>{s.label}</span>
 }
 
 // ── Typing indicator ──────────────────────────────────────────────────
 
 function TypingIndicator() {
     return (
-        <div className="flex items-end gap-3 mb-4">
-            <div className="w-8 h-8 rounded-2xl bg-accent-purple flex items-center justify-center text-white text-sm flex-shrink-0">🩺</div>
-            <div className="bg-surface border border-white/10 rounded-2xl rounded-bl-none px-4 py-3 shadow-sm">
-                <div className="flex gap-1 items-center h-5">
-                    <div className="w-2 h-2 bg-accent-blue/60 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                    <div className="w-2 h-2 bg-accent-blue/60 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                    <div className="w-2 h-2 bg-accent-blue/60 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+        <div className="flex items-start gap-3 mb-5">
+            <img src="/curezy logo.png" alt="Curezy" className="w-7 h-7 rounded-full object-contain flex-shrink-0 mt-0.5 bg-[#2f2f2f]" />
+            <div className="pt-2">
+                <div className="flex gap-1">
+                    <div className="w-2 h-2 bg-[#555] rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                    <div className="w-2 h-2 bg-[#555] rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                    <div className="w-2 h-2 bg-[#555] rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
                 </div>
             </div>
         </div>
     )
 }
 
-// ── Council analysis progress bubble ─────────────────────────────────
-
-// ── Dynamic Tree of Thought Visualizer (replaces basic bubble) ────────
+// ── Council analysis thinking block ──────────────────────────────────
 
 function AnalysisBubble() {
     const [logs, setLogs] = useState([])
+    const [expanded, setExpanded] = useState(true)
     const endRef = useRef(null)
 
     useEffect(() => {
         endRef.current?.scrollIntoView({ behavior: 'smooth' })
-    }, [logs])
+    }, [logs, expanded])
 
     useEffect(() => {
         const sequence = [
-            { t: 0, msg: "[System] Initializing Council Diagnostic Engine...", type: "system" },
-            { t: 800, msg: "[Dr. Gemma] Extracting clinical phenotypes from raw patient input...", type: "gemma" },
-            { t: 2500, msg: "[Dr. OpenBio] Cross-referencing biomedical literature for isolated phenotypes...", type: "bio" },
-            { t: 5000, msg: "[Dr. Gemma] Hypothesis A: Acute viral infection. Formulating differential...", type: "gemma" },
-            { t: 7500, msg: "[Dr. Mistral] Devil's Advocate: Counter-evaluating for bacterial pathology markers...", type: "mistral" },
-            { t: 10500, msg: "[Dr. OpenBio] Evidence Check: Primary viral indicators match literature consensus >85%.", type: "bio" },
-            { t: 13000, msg: "[System] Variance detected across models. Initiating deep Debate Phase...", type: "system" },
-            { t: 15500, msg: "[Dr. Mistral] Adjusting weights. Conceding to viral pathology based on timeline.", type: "mistral" },
-            { t: 17500, msg: "[System] Debate resolved. Council agreement threshold reached.", type: "system" },
-            { t: 19000, msg: "[System] Weighted Consensus Engine compiling final diagnostic report...", type: "system" },
+            { t: 0, msg: "Initializing Secure Diagnostic Environment...", type: "system", icon: <ShieldCheck size={14} className="text-[#666]" /> },
+            { t: 800, msg: "Curezy AURIX: Extracting clinical markers from patterns...", type: "gemma", icon: <Brain size={14} className="text-blue-400" /> },
+            { t: 2500, msg: "Curezy AURA: Mapping symptoms to biomedical knowledge base...", type: "bio", icon: <Search size={14} className="text-emerald-400" /> },
+            { t: 5000, msg: "Curezy AURIX: Formulating initial differential prioritizations...", type: "gemma", icon: <Brain size={14} className="text-blue-400" /> },
+            { t: 7500, msg: "Curezy AURIS: Stress-testing hypotheses for inconsistencies...", type: "mistral", icon: <Activity size={14} className="text-amber-400" /> },
+            { t: 10500, msg: "Curezy AURA: Verifying compliance with latest clinical guidelines...", type: "bio", icon: <Search size={14} className="text-emerald-400" /> },
+            { t: 13000, msg: "Synthesizing Council consensus and evidence clusters...", type: "system", icon: <Heart size={14} className="text-pink-400" /> },
+            { t: 15500, msg: "AURIS: Conceding to high-probability pathology markers.", type: "mistral", icon: <Activity size={14} className="text-amber-400" /> },
+            { t: 17500, msg: "Finalizing diagnostic confidence weights...", type: "system", icon: <ShieldCheck size={14} className="text-[#666]" /> },
+            { t: 19000, msg: "Compiling detailed clinical assessment report...", type: "system", icon: <ShieldCheck size={14} className="text-[#666]" /> },
         ]
 
-        const timers = sequence.map(({ t, msg, type }) =>
-            setTimeout(() => setLogs(p => [...p, { msg, type }]), t)
+        const timers = sequence.map(({ t, msg, type, icon }) =>
+            setTimeout(() => setLogs(p => [...p, { msg, type, icon }]), t)
         )
         return () => timers.forEach(clearTimeout)
     }, [])
 
-    const typeColors = {
-        system: "text-gray-500",
-        gemma: "text-blue-400",
-        bio: "text-green-400",
-        mistral: "text-orange-400"
-    }
-
     return (
-        <div className="flex items-start gap-3 mb-4 w-full">
-            <div className="w-8 h-8 rounded-2xl bg-accent-purple flex items-center justify-center text-white text-sm flex-shrink-0 animate-pulse shadow-[0_0_15px_rgba(123,44,191,0.5)] z-10">
-                🧠
-            </div>
-            <div className="flex-1 bg-[#050510]/95 backdrop-blur-xl border border-white/10 rounded-2xl rounded-bl-none overflow-hidden shadow-2xl relative max-w-2xl">
-                {/* Header */}
-                <div className="bg-surface/60 px-4 py-2 flex items-center justify-between border-b border-white/5">
-                    <span className="text-[11px] font-bold text-gray-300 uppercase tracking-widest flex items-center gap-2">
-                        <Loader2 size={12} className="animate-spin text-accent-blue" />
-                        Tree of Thought Analysis
-                    </span>
-                    <span className="text-[10px] text-accent-blue font-mono bg-accent-blue/10 px-2 py-0.5 rounded border border-accent-blue/20">LIVE</span>
-                </div>
-                {/* Terminal Body */}
-                <div className="p-4 font-mono text-[11px] leading-relaxed space-y-2.5 h-48 overflow-y-auto" style={{ scrollbarWidth: 'none' }}>
-                    {logs.map((log, i) => (
-                        <div key={i} className="flex gap-2 animate-in fade-in slide-in-from-bottom-1 duration-300">
-                            <span className="text-gray-600 shrink-0">❯</span>
-                            <span className={typeColors[log.type] || "text-gray-300"}>{log.msg}</span>
+        <div className="mb-6 max-w-2xl">
+            <div className="bg-[#1a1a1a]/40 border border-[#2a2a2a] rounded-2xl overflow-hidden backdrop-blur-sm transition-all duration-300 hover:border-[#333]">
+                <button
+                    onClick={() => setExpanded(!expanded)}
+                    className="w-full px-4 py-3 border-b border-[#2a2a2a] flex items-center justify-between hover:bg-[#222]/50 transition-colors"
+                >
+                    <div className="flex items-center gap-3">
+                        <div className="relative">
+                            <Brain size={16} className="text-accent-green" />
+                            <div className="absolute inset-0 bg-accent-green/20 blur-md animate-pulse rounded-full" />
                         </div>
-                    ))}
-                    <div ref={endRef} />
-                </div>
-                {/* Visualizer Footer Gradient Overlay */}
-                <div className="absolute bottom-0 left-0 w-full h-8 bg-gradient-to-t from-[#050510] to-transparent pointer-events-none" />
+                        <span className="text-[13px] text-white/90 font-medium flex items-center gap-2">
+                            Thinking
+                            <span className="inline-flex gap-0.5">
+                                <span className="w-1 h-1 bg-accent-green rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                                <span className="w-1 h-1 bg-accent-green rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                                <span className="w-1 h-1 bg-accent-green rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                            </span>
+                        </span>
+                    </div>
+                    <ChevronDown size={14} className={`text-[#666] transition-transform duration-300 ${expanded ? 'rotate-180' : ''}`} />
+                </button>
+
+                {expanded && (
+                    <div className="p-4 bg-[#1a1a1a]/60 font-medium text-[12px] leading-relaxed space-y-3.5 max-h-[320px] overflow-y-auto custom-scrollbar">
+                        {logs.map((log, i) => (
+                            <div key={i} className="flex gap-3 fade-in items-start group">
+                                <span className="shrink-0 mt-0.5 opacity-80 group-hover:opacity-100 transition-opacity">
+                                    {log.icon || <span className="text-[#444]">&#10095;</span>}
+                                </span>
+                                <span className="text-[#888] group-hover:text-[#aaa] transition-colors">{log.msg}</span>
+                            </div>
+                        ))}
+                        <div ref={endRef} />
+                    </div>
+                )}
             </div>
         </div>
     )
@@ -122,16 +135,14 @@ function AnalysisBubble() {
 
 function EmptyState({ onNewChat }) {
     return (
-        <div className="flex flex-col items-center justify-center h-full text-center pb-20 select-none">
-            <div className="w-20 h-20 bg-gradient-to-br from-primary-100 to-primary-200 rounded-3xl flex items-center justify-center mb-5 shadow-inner">
-                <span className="text-4xl">🩺</span>
-            </div>
-            <h3 className="text-xl font-bold text-white mb-2">Curezy Medical Council</h3>
-            <p className="text-gray-500 text-sm max-w-xs leading-relaxed mb-6">
+        <div className="flex flex-col items-center justify-center h-full text-center pb-24 select-none">
+            <img src="/curezy logo.png" alt="Curezy" className="w-16 h-16 rounded-2xl object-contain mb-6 bg-[#2f2f2f] p-2" />
+            <h3 className="text-xl font-semibold text-white mb-2 tracking-tight">Curezy Medical Council</h3>
+            <p className="text-[#777] text-sm max-w-sm leading-relaxed mb-8">
                 3 specialized AI doctors analyze your symptoms in parallel and debate to reach the most accurate diagnosis.
             </p>
             <button onClick={onNewChat}
-                className="flex items-center gap-2 bg-accent-blue hover:bg-accent-purple text-white px-5 py-2.5 rounded-xl text-sm font-medium transition-colors shadow-md shadow-[0_0_15px_rgba(123,44,191,0.3)]">
+                className="flex items-center gap-2 bg-white text-[#212121] px-6 py-2.5 rounded-xl text-sm font-semibold transition-all hover:bg-[#e5e5e5]">
                 <Plus size={16} /> Start a Consultation
             </button>
         </div>
@@ -142,190 +153,150 @@ function EmptyState({ onNewChat }) {
 // ── Model selector options ────────────────────────────────────────────
 
 const MODEL_OPTIONS = [
-    {
-        key: 'council',
-        label: 'AURANET (Thinking)',
-        desc: 'Full council debate — most accurate',
-        emoji: '🩺',
-        color: 'from-violet-500 to-indigo-500',
-        badge: 'bg-violet-100 text-violet-700',
-    },
-    {
-        key: 'medgemma',
-        label: 'AURIX',
-        desc: 'Most powerful model · Primary diagnostician',
-        emoji: '🧠',
-        color: 'from-blue-500 to-cyan-500',
-        badge: 'bg-blue-500/20 text-blue-300',
-    },
-    {
-        key: 'openbiollm',
-        label: 'AURA',
-        desc: 'Main balanced model · Biomedical evidence engine',
-        emoji: '🔬',
-        color: 'from-green-500 to-teal-500',
-        badge: 'bg-green-500/20 text-green-300',
-    },
-    {
-        key: 'mistral',
-        label: 'AURIS',
-        desc: 'Fast lightweight · Devil\'s advocate',
-        emoji: '💊',
-        color: 'from-orange-500 to-red-500',
-        badge: 'bg-orange-500/20 text-orange-300',
-    },
+    { key: 'council', label: 'AURANET (Thinking)', desc: 'Full council debate -- most accurate' },
+    { key: 'medgemma', label: 'AURIX', desc: 'Primary diagnostician' },
+    { key: 'openbiollm', label: 'AURA', desc: 'Biomedical evidence engine' },
+    { key: 'mistral', label: 'AURIS', desc: "Fast lightweight -- Devil's advocate" },
 ]
 
-// ── Settings Popover ──────────────────────────────────────────────────
+// ── Model selector dropdown (now inside input area) ───────────────────
 
-function SettingsPopover({ backendConvId, selectedModel, onModelSelect, onUploadDone, onClose }) {
-    const [panel, setPanel] = useState(null)  // null | 'doc' | 'img' | 'model'
+function ModelSelector({ selectedModel, onSelect }) {
+    const [open, setOpen] = useState(false)
     const ref = useRef(null)
+    const active = MODEL_OPTIONS.find(m => m.key === selectedModel) || MODEL_OPTIONS[0]
 
-    // Close on outside click
     useEffect(() => {
-        const handler = e => { if (ref.current && !ref.current.contains(e.target)) onClose() }
+        const handler = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
         document.addEventListener('mousedown', handler)
         return () => document.removeEventListener('mousedown', handler)
-    }, [onClose])
-
-    const activeModel = MODEL_OPTIONS.find(m => m.key === selectedModel) || MODEL_OPTIONS[0]
+    }, [])
 
     return (
-        <div ref={ref} className="absolute bottom-full left-0 mb-3 w-72 glass shadow-2xl border border-white/10 rounded-2xl overflow-hidden z-50">
-
-            {/* Header */}
-            <div className="px-4 py-3 bg-surface/50 border-b border-white/10 flex items-center justify-between">
-                <span className="text-xs font-bold text-gray-200 uppercase tracking-wide">Options</span>
-                <button onClick={onClose} className="text-gray-500 hover:text-slate-600"><X size={14} /></button>
-            </div>
-
-            {panel === null && (
-                <div className="p-2">
-                    {[
-                        { id: 'doc', icon: <FileText size={16} />, label: 'Upload Document', sub: 'PDF, TXT, DOCX — auto-extracted' },
-                        { id: 'img', icon: <Image size={16} />, label: 'Upload Image', sub: 'X-Ray, CT, MRI — AI analyzed' },
-                        { id: 'model', icon: <Cpu size={16} />, label: 'Select AI Model', sub: `Active: ${activeModel.label}` },
-                    ].map(item => (
-                        <button key={item.id} onClick={() => setPanel(item.id)}
-                            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-surface-light text-left transition-colors">
-                            <span className="text-accent-blue bg-surface-light p-1.5 rounded-lg shadow-sm border border-white/10">{item.icon}</span>
+        <div ref={ref} className="relative">
+            <button
+                onClick={() => setOpen(o => !o)}
+                className="flex items-center gap-1 text-[12px] text-[#777] hover:text-[#bbb] transition-colors rounded px-1 py-0.5"
+            >
+                {active.label}
+                <ChevronDown size={12} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
+            </button>
+            {open && (
+                <div className="absolute bottom-full left-0 mb-2 w-72 bg-[#2a2a2a] border border-[#3a3a3a] rounded-xl shadow-2xl overflow-hidden z-50">
+                    <div className="px-3 py-2 border-b border-[#333]">
+                        <p className="text-[11px] text-[#666] font-medium uppercase tracking-wide">Model</p>
+                    </div>
+                    {MODEL_OPTIONS.map(m => (
+                        <button
+                            key={m.key}
+                            onClick={() => { onSelect(m.key); setOpen(false) }}
+                            className={`w-full flex items-center justify-between px-3 py-2.5 text-left transition-colors ${selectedModel === m.key ? 'bg-[#333]' : 'hover:bg-[#333]'
+                                }`}
+                        >
                             <div className="min-w-0">
-                                <p className="text-sm font-bold text-white tracking-tight">{item.label}</p>
-                                <p className="text-xs text-gray-500 truncate">{item.sub}</p>
+                                <p className="text-[13px] font-medium text-[#ddd]">{m.label}</p>
+                                <p className="text-[11px] text-[#666] leading-tight">{m.desc}</p>
                             </div>
-                            <span className="ml-auto text-slate-300 text-xs font-bold">›</span>
+                            {selectedModel === m.key && <Check size={14} className="text-accent-green flex-shrink-0 ml-2" />}
                         </button>
                     ))}
                 </div>
-            )}
-
-            {(panel === 'doc' || panel === 'img') && (
-                <UploadPanel
-                    backendConvId={backendConvId}
-                    acceptImages={panel === 'img'}
-                    onUploadDone={(res) => { onUploadDone(res); onClose() }}
-                    onBack={() => setPanel(null)}
-                />
-            )}
-
-            {panel === 'model' && (
-                <ModelPanel
-                    selectedModel={selectedModel}
-                    onSelect={(key) => { onModelSelect(key); setPanel(null); onClose() }}
-                    onBack={() => setPanel(null)}
-                />
             )}
         </div>
     )
 }
 
-// ── Upload panel (inside popover) ─────────────────────────────────────
+// ── Attachment dropdown ───────────────────────────────────────────────
 
-function UploadPanel({ backendConvId, acceptImages, onUploadDone, onBack }) {
+function AttachDropdown({ backendConvId, onUploadDone }) {
+    const [open, setOpen] = useState(false)
+    const [mode, setMode] = useState(null)
     const [file, setFile] = useState(null)
     const [uploading, setUploading] = useState(false)
     const [done, setDone] = useState(null)
+    const ref = useRef(null)
     const inputRef = useRef(null)
-    const accept = acceptImages ? '.jpg,.jpeg,.png,.webp' : '.pdf,.txt,.docx'
-    const label = acceptImages ? 'JPG, PNG, WEBP (X-Ray, CT, MRI)' : 'PDF, TXT, DOCX'
+
+    useEffect(() => {
+        const handler = e => { if (ref.current && !ref.current.contains(e.target)) { setOpen(false); setMode(null); setFile(null); setDone(null) } }
+        document.addEventListener('mousedown', handler)
+        return () => document.removeEventListener('mousedown', handler)
+    }, [])
+
+    const accept = mode === 'img' ? '.jpg,.jpeg,.png,.webp' : '.pdf,.txt,.docx'
 
     const doUpload = async () => {
         if (!file || !backendConvId) return
         setUploading(true)
         try {
-            const form = new FormData()
-            form.append('conversation_id', backendConvId)
-            form.append('file', file)
-            const res = await (await import('../api/client')).uploadReport(backendConvId, file)
+            const res = await uploadReport(backendConvId, file)
             setDone(res.data)
             onUploadDone && onUploadDone(res.data)
+            setTimeout(() => { setOpen(false); setMode(null); setFile(null); setDone(null) }, 1500)
         } catch { setDone({ success: false, message: 'Upload failed.' }) }
         setUploading(false)
     }
 
+    const handleChoose = (type) => {
+        setMode(type)
+        setFile(null)
+        setDone(null)
+        setTimeout(() => inputRef.current?.click(), 50)
+    }
+
     return (
-        <div className="p-3">
-            <button onClick={onBack} className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-600 mb-3">
-                ‹ Back
+        <div ref={ref} className="relative">
+            <button
+                onClick={() => { setOpen(o => !o); setMode(null); setFile(null); setDone(null) }}
+                className="p-1.5 rounded-lg text-[#666] hover:text-[#aaa] transition-colors"
+                title="Attach file"
+            >
+                <Paperclip size={18} />
             </button>
-            {done ? (
-                <div className={`text-xs px-3 py-2 rounded-xl ${done.success !== false ? 'bg-green-500/20 text-green-300' : 'bg-red-500/20 text-red-300'}`}>
-                    {done.success !== false ? `✓ ${done.filename} — extracted` : done.message}
+            {open && !mode && (
+                <div className="absolute bottom-full left-0 mb-2 w-56 bg-[#2a2a2a] border border-[#3a3a3a] rounded-xl shadow-2xl overflow-hidden z-50">
+                    <button onClick={() => handleChoose('doc')} className="w-full flex items-center gap-3 px-4 py-3 hover:bg-[#333] transition-colors text-left">
+                        <FileText size={16} className="text-[#999]" />
+                        <div>
+                            <p className="text-[13px] text-[#ddd]">Upload Document</p>
+                            <p className="text-[11px] text-[#666]">PDF, TXT, DOCX</p>
+                        </div>
+                    </button>
+                    <div className="border-t border-[#333]" />
+                    <button onClick={() => handleChoose('img')} className="w-full flex items-center gap-3 px-4 py-3 hover:bg-[#333] transition-colors text-left">
+                        <Image size={16} className="text-[#999]" />
+                        <div>
+                            <p className="text-[13px] text-[#ddd]">Upload Image</p>
+                            <p className="text-[11px] text-[#666]">X-Ray, CT, MRI</p>
+                        </div>
+                    </button>
                 </div>
-            ) : (
-                <>
+            )}
+            {open && mode && (
+                <div className="absolute bottom-full left-0 mb-2 w-64 bg-[#2a2a2a] border border-[#3a3a3a] rounded-xl shadow-2xl overflow-hidden z-50 p-3">
                     <input ref={inputRef} type="file" accept={accept} className="hidden"
                         onChange={e => { if (e.target.files[0]) setFile(e.target.files[0]) }} />
-                    {!file ? (
+                    {done ? (
+                        <div className={`text-xs px-3 py-2 rounded-lg ${done.success !== false ? 'text-accent-green' : 'text-red-400'}`}>
+                            {done.success !== false ? `Uploaded ${done.filename}` : done.message}
+                        </div>
+                    ) : !file ? (
                         <button onClick={() => inputRef.current?.click()}
-                            className="w-full border-2 border-dashed border-white/10 hover:border-accent-blue rounded-xl py-6 text-center text-xs text-gray-500 hover:text-accent-blue transition-colors">
-                            <div className="text-2xl mb-1">{acceptImages ? '🖼️' : '📄'}</div>
-                            Click to choose file<br />
-                            <span className="text-gray-300">{label}</span>
+                            className="w-full border border-dashed border-[#444] hover:border-[#666] rounded-xl py-5 text-center text-xs text-[#666] hover:text-[#aaa] transition-colors">
+                            Click to choose file
                         </button>
                     ) : (
                         <div className="flex items-center gap-2">
-                            <FileText size={14} className="text-accent-blue flex-shrink-0" />
-                            <span className="text-xs text-gray-200 truncate flex-1">{file.name}</span>
+                            <FileText size={14} className="text-[#999] flex-shrink-0" />
+                            <span className="text-xs text-[#ddd] truncate flex-1">{file.name}</span>
                             <button onClick={doUpload} disabled={uploading}
-                                className="bg-accent-purple text-white px-3 py-1.5 rounded-lg text-xs font-medium disabled:opacity-50">
+                                className="bg-accent-green text-white px-3 py-1.5 rounded-lg text-xs font-medium disabled:opacity-50 transition-colors hover:bg-[#0d8c6b]">
                                 {uploading ? <Loader2 size={11} className="animate-spin inline" /> : 'Upload'}
                             </button>
                         </div>
                     )}
-                </>
+                </div>
             )}
-        </div>
-    )
-}
-
-// ── Model selector panel ──────────────────────────────────────────────
-
-function ModelPanel({ selectedModel, onSelect, onBack }) {
-    return (
-        <div className="p-3">
-            <button onClick={onBack} className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-600 mb-3">
-                ‹ Back
-            </button>
-            <div className="space-y-1.5">
-                {MODEL_OPTIONS.map(m => (
-                    <button key={m.key} onClick={() => onSelect(m.key)}
-                        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border-2 text-left transition-all ${selectedModel === m.key
-                            ? 'border-accent-blue bg-primary-50'
-                            : 'border-transparent hover:bg-white/5'
-                            }`}>
-                        <span className={`w-8 h-8 rounded-lg bg-gradient-to-br ${m.color} flex items-center justify-center text-base flex-shrink-0`}>
-                            {m.emoji}
-                        </span>
-                        <div className="min-w-0 flex-1">
-                            <p className="text-sm font-semibold text-white">{m.label}</p>
-                            <p className="text-xs text-gray-500 leading-tight">{m.desc}</p>
-                        </div>
-                        {selectedModel === m.key && <Check size={14} className="text-accent-blue flex-shrink-0" />}
-                    </button>
-                ))}
-            </div>
         </div>
     )
 }
@@ -341,7 +312,6 @@ const STAGE_CHIP_OPTIONS = {
 }
 
 // ── DB helpers ────────────────────────────────────────────────────────
-// convId here is ALWAYS the stable Supabase conversation ID
 
 async function dbUpsertConversation(userId, convId, title) {
     if (!userId || !convId) return
@@ -384,7 +354,6 @@ function normalizeAnalysis(data) {
     if (data.analysis && data.analysis.top_3_conditions) return data.analysis;
     if (data.conditions) return { top_3_conditions: data.conditions, ...data };
     if (data.analysis && data.analysis.conditions) return { top_3_conditions: data.analysis.conditions, ...data.analysis };
-    // fallback
     if (data.analysis) return data.analysis;
     return null;
 }
@@ -398,15 +367,10 @@ export default function Chat() {
     const [loading, setLoading] = useState(false)
     const [convLoading, setConvLoading] = useState(false)
 
-    // ── Two separate IDs:
-    // convId        = stable Supabase identifier, used for all DB reads/writes
-    // backendConvId = backend in-memory session ID, used only for API calls
-    //                 (may be different from convId if server restarted)
-    const [convId, setConvId] = useState(null)           // ← Supabase stable
-    const backendConvIdRef = useRef(null)                 // ← backend ephemeral
+    const [convId, setConvId] = useState(null)
+    const backendConvIdRef = useRef(null)
 
     const [selectedModel, setSelectedModel] = useState('council')
-    const [showSettings, setShowSettings] = useState(false)
 
     const [convTitle, setConvTitle] = useState('New Consultation')
     const [stage, setStage] = useState('greeting')
@@ -414,7 +378,6 @@ export default function Chat() {
     const [analysisStep, setAnalysisStep] = useState('initializing')
     const [showingAnalysis, setShowingAnalysis] = useState(false)
     const [showReferral, setShowReferral] = useState(false)
-    const [showUpload, setShowUpload] = useState(false)
     const [refreshSidebar, setRefreshSidebar] = useState(0)
     const [isRecording, setIsRecording] = useState(false)
     const bottomRef = useRef(null)
@@ -426,7 +389,6 @@ export default function Chat() {
         bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
     }, [messages, loading, showingAnalysis])
 
-    // ── Analysis step sequencer ──
     const startAnalysisSequence = useCallback(() => {
         const steps = ['initializing', 'processing', 'diagnosing']
         let i = 0
@@ -438,7 +400,6 @@ export default function Chat() {
         }, 2200)
     }, [])
 
-    // ── Boot a fresh backend session (does NOT change convId) ──
     const bootBackendSession = useCallback(async () => {
         try {
             const res = await startChat()
@@ -451,13 +412,12 @@ export default function Chat() {
         }
     }, [])
 
-    // ── New chat ──
     const handleNewChat = useCallback(async () => {
         console.log('[Chat] Starting new session...')
         clearInterval(analysisTimerRef.current)
         setMessages([]); setAnalysisResult(null); setStage('greeting')
         setConvTitle('New Consultation'); setShowReferral(false)
-        setShowUpload(false); setShowingAnalysis(false)
+        setShowingAnalysis(false)
         setInput(''); setAnalysisStep('initializing'); setLoading(true)
         try {
             const res = await startChat()
@@ -490,7 +450,6 @@ export default function Chat() {
         }
     }, [user?.id])
 
-    // ── Restore most recent conversation on mount ──
     useEffect(() => {
         if (initialized.current || !user?.id) return
         initialized.current = true
@@ -503,14 +462,41 @@ export default function Chat() {
                     .eq('user_id', user.id).order('updated_at', { ascending: false }).limit(1)
                 const last = convs?.[0]
                 if (last) {
-                    const msgs = await dbLoadMessages(last.conversation_id)
-                    setConvId(last.conversation_id)
+                    const convId = last.conversation_id
+                    setConvId(convId)
                     setConvTitle(last.title || 'Consultation')
-                    setMessages(msgs)
-                    const hasResults = msgs.some(m => m.role === 'assistant' && (m.content.includes('diagnosis') || m.content.includes('condition')))
-                    setStage(hasResults ? 'results' : msgs.length > 0 ? 'chief_complaint' : 'greeting')
 
-                    await bootBackendSession()
+                    // Sync with backend state
+                    try {
+                        const res = await resumeChat(convId)
+                        if (res.data?.success) {
+                            setMessages(res.data.messages || [])
+                            setStage(res.data.stage || 'chief_complaint')
+                            if (res.data.analysis_result) {
+                                const ar = res.data.analysis_result
+                                setAnalysisResult({
+                                    analysis: normalizeAnalysis(ar.analysis || ar),
+                                    confidence: ar.confidence,
+                                    dataGaps: ar.data_gaps
+                                })
+                                setShowReferral(true)
+                            }
+                        } else {
+                            // Fallback to basic message loading if resumeChat fails
+                            const msgs = await dbLoadMessages(convId)
+                            setMessages(msgs)
+                            const hasResults = msgs.some(m => m.role === 'assistant' && (m.content.includes('diagnosis') || m.content.includes('condition')))
+                            setStage(hasResults ? 'results' : msgs.length > 0 ? 'chief_complaint' : 'greeting')
+                        }
+                    } catch (e) {
+                        console.warn('[Chat] resumeChat failed, fallback to local restore:', e)
+                        const msgs = await dbLoadMessages(convId)
+                        setMessages(msgs)
+                        const hasResults = msgs.some(m => m.role === 'assistant' && (m.content.includes('diagnosis') || m.content.includes('condition')))
+                        setStage(hasResults ? 'results' : msgs.length > 0 ? 'chief_complaint' : 'greeting')
+                    }
+
+                    backendConvIdRef.current = convId
                 } else {
                     await handleNewChat()
                 }
@@ -524,58 +510,73 @@ export default function Chat() {
         restore()
     }, [user?.id, bootBackendSession, handleNewChat])
 
-    // ── Select conversation ──
     const handleSelectConv = useCallback(async (selectedId) => {
         if (selectedId === convId) return
         setConvLoading(true); setMessages([]); setAnalysisResult(null)
-        setStage('greeting'); setShowReferral(false); setShowUpload(false)
+        setStage('greeting'); setShowReferral(false)
         setShowingAnalysis(false); setInput('')
 
-        // Load history from Supabase — stable ID stays selectedId
         setConvId(selectedId)
-        const msgs = await dbLoadMessages(selectedId)
-        setMessages(msgs)
+        backendConvIdRef.current = selectedId
+
+        try {
+            const res = await resumeChat(selectedId)
+            if (res.data?.success) {
+                setMessages(res.data.messages || [])
+                setStage(res.data.stage || 'chief_complaint')
+                if (res.data.analysis_result) {
+                    const ar = res.data.analysis_result
+                    setAnalysisResult({
+                        analysis: normalizeAnalysis(ar.analysis || ar),
+                        confidence: ar.confidence,
+                        dataGaps: ar.data_gaps
+                    })
+                    setShowReferral(true)
+                }
+            } else {
+                const msgs = await dbLoadMessages(selectedId)
+                setMessages(msgs)
+                const hasResults = msgs.some(m => m.role === 'assistant' && (m.content.includes('diagnosis') || m.content.includes('condition')))
+                setStage(hasResults ? 'results' : msgs.length > 0 ? 'chief_complaint' : 'greeting')
+            }
+        } catch (e) {
+            console.warn('[Chat] handleSelectConv resumeChat failed:', e)
+            const msgs = await dbLoadMessages(selectedId)
+            setMessages(msgs)
+            const hasResults = msgs.some(m => m.role === 'assistant' && (m.content.includes('diagnosis') || m.content.includes('condition')))
+            setStage(hasResults ? 'results' : msgs.length > 0 ? 'chief_complaint' : 'greeting')
+        }
+
         const { data: conv } = await supabase.from('conversations').select('title').eq('conversation_id', selectedId).single()
         setConvTitle(conv?.title || 'Consultation')
-        const hasResults = msgs.some(m => m.role === 'assistant' && (m.content.includes('diagnosis') || m.content.includes('condition')))
-        setStage(hasResults ? 'results' : msgs.length > 0 ? 'chief_complaint' : 'greeting')
-
-        // Boot backend session separately — convId (Supabase) is unchanged
-        await bootBackendSession()
 
         setConvLoading(false)
-    }, [convId, bootBackendSession])
+    }, [convId])
 
-    // ── Send message ──
     const handleSend = useCallback(async (overrideText) => {
         const text = (overrideText || input).trim()
         if (!text || loading || !convId) return
         setInput('')
-        setShowUpload(false)
 
         const userMsg = { role: 'user', content: text, timestamp: new Date().toISOString() }
         setMessages(prev => [...prev, userMsg])
         setLoading(true)
 
-        // ── Show ToT terminal immediately if analysis is about to be triggered ──
         if (stage === 'confirming') {
             setShowingAnalysis(true)
             startAnalysisSequence()
         }
 
-        // Save to DB using the stable Supabase convId
         await dbInsertMessage(user?.id, convId, 'user', text)
 
-        // Set title from first user message
         const userMsgCount = messages.filter(m => m.role === 'user').length
         if (userMsgCount === 0) {
-            const title = text.length > 48 ? text.slice(0, 48) + '…' : text
+            const title = text.length > 48 ? text.slice(0, 48) + '...' : text
             setConvTitle(title)
             await dbUpsertConversation(user?.id, convId, title)
             setRefreshSidebar(n => n + 1)
         }
 
-        // ── API call using backend session ID ──
         const doSend = async (backendId) => {
             return await sendMessage(backendId, text, selectedModel)
         }
@@ -585,24 +586,21 @@ export default function Chat() {
             res = await doSend(backendConvIdRef.current)
         } catch (err) {
             if (err?.response?.status === 404) {
-                // Backend session expired — boot a new one and retry
-                console.warn('[Chat] Backend session expired, recovering…')
+                console.warn('[Chat] Backend session expired, recovering...')
                 const newBId = await bootBackendSession()
                 if (!newBId) throw err
                 res = await doSend(newBId)
             } else if (err?.code === 'ECONNABORTED' || err?.message?.toLowerCase().includes('timeout')) {
-                // Request timed out on the frontend — but backend may still be processing.
-                // Keep the ToT terminal visible and show an informational message.
-                console.warn('[Chat] Request timed out — backend still processing. Showing wait message.')
+                console.warn('[Chat] Request timed out — backend still processing.')
                 const waitMsg = {
                     role: 'assistant',
-                    content: '⏳ The AI Council is still analyzing your case — this can take a few minutes for complex diagnostics. Please wait, results will appear shortly.',
+                    content: 'The AI Council is still analyzing your case -- this can take a few minutes for complex diagnostics. Please wait, results will appear shortly.',
                     timestamp: new Date().toISOString(),
                     isInfo: true,
                 }
                 setMessages(prev => [...prev, waitMsg])
                 setLoading(false)
-                return   // Don't mark as failed; let the backend finish
+                return
             } else {
                 throw err
             }
@@ -611,19 +609,16 @@ export default function Chat() {
         try {
             const reply = res.data?.message || 'Sorry, I could not process that.'
 
-            // BUGFIX: Check if RunPod failed gracefully with success: false
             if (res.data?.success === false) {
-                throw new Error(reply); // Jumps to catch block to mark as failed
+                throw new Error(reply)
             }
 
             const nextStage = res.data?.stage || stage
             setStage(nextStage)
 
-            // BUGFIX: Handle all 4 shapes of analysis payloads
             const normAnalysis = normalizeAnalysis(res.data)
 
             if (nextStage === 'analyzing' || normAnalysis) {
-                // Ensure terminal is shown (in case confirming stage was skipped)
                 if (!showingAnalysis) {
                     setShowingAnalysis(true)
                     startAnalysisSequence()
@@ -633,7 +628,6 @@ export default function Chat() {
                     setAnalysisResult({ analysis: normAnalysis, confidence: res.data.confidence, dataGaps: res.data.data_gaps })
                     clearInterval(analysisTimerRef.current)
                     setAnalysisStep('done')
-                    // Allow the ToT animation to finish gracefully before transitioning
                     setTimeout(() => { setShowingAnalysis(false); setStage('results'); setShowReferral(true) }, 3000)
                 } else {
                     const aiMsg = { role: 'assistant', content: reply, timestamp: new Date().toISOString() }
@@ -646,15 +640,13 @@ export default function Chat() {
                 await dbInsertMessage(user?.id, convId, 'assistant', reply)
             }
 
-            await dbTouchConversation(user?.id, convId)                        // ← stable convId
+            await dbTouchConversation(user?.id, convId)
         } catch (err) {
             console.error('[Chat] response handling error:', err)
-            // Reset analysis UI if it was stuck showing (e.g. RunPod returned success: false)
             clearInterval(analysisTimerRef.current)
             setShowingAnalysis(false)
             setAnalysisStep('initializing')
             setStage(prev => prev === 'analyzing' ? 'confirming' : prev)
-            // Flag the last user message as failed instead of appending an AI error
             setMessages(prev => {
                 const newMsgs = [...prev]
                 const lastUserIdx = newMsgs.findLastIndex(m => m.role === 'user')
@@ -671,7 +663,7 @@ export default function Chat() {
         setMessages(prev => {
             const arr = [...prev]
             const idx = arr.findLastIndex(m => m.role === 'user' && m.isFailed && m.content === failedText)
-            if (idx !== -1) arr.splice(idx, 1) // remove failed message before retry
+            if (idx !== -1) arr.splice(idx, 1)
             return arr
         })
         handleSend(failedText)
@@ -681,7 +673,6 @@ export default function Chat() {
         if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() }
     }
 
-    // ── Voice input ──
     const toggleRecording = () => {
         if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
             alert('Voice input not supported in this browser. Please use Chrome.'); return
@@ -694,42 +685,35 @@ export default function Chat() {
         r.start(); recognitionRef.current = r; setIsRecording(true)
     }
 
-    // ── Upload done ──
     const handleUploadDone = useCallback((uploadRes) => {
         if (!uploadRes) return
         const summary = uploadRes.type === 'document' && uploadRes.parsed_fields && Object.keys(uploadRes.parsed_fields).length > 0
-            ? `📎 *${uploadRes.filename}* uploaded — I've extracted your medical information from this document.`
+            ? `*${uploadRes.filename}* uploaded -- medical information extracted.`
             : uploadRes.type === 'image' && uploadRes.image_findings?.findings
-                ? `📎 *${uploadRes.filename}* analyzed — ${uploadRes.image_findings.findings}`
-                : `📎 *${uploadRes.filename}* uploaded successfully.`
+                ? `*${uploadRes.filename}* analyzed -- ${uploadRes.image_findings.findings}`
+                : `*${uploadRes.filename}* uploaded successfully.`
         const aiMsg = { role: 'assistant', content: summary, timestamp: new Date().toISOString() }
         setMessages(prev => [...prev, aiMsg])
-        dbInsertMessage(user?.id, convId, 'assistant', summary)               // ← stable convId
+        dbInsertMessage(user?.id, convId, 'assistant', summary)
     }, [user?.id, convId])
 
     const isIdle = messages.length === 0 && !loading && !convLoading
     const chips = STAGE_CHIP_OPTIONS[stage] || []
 
     return (
-        <div className="flex h-screen bg-transparent overflow-hidden relative">
+        <div className="flex h-screen bg-[#212121] overflow-hidden relative">
             <Sidebar user={user} currentConvId={convId} refreshTrigger={refreshSidebar}
                 onNewChat={handleNewChat} onSelectConv={handleSelectConv} />
 
             <div className="flex-1 flex flex-col min-w-0 relative z-10">
 
-                {/* Header */}
-                <div className="glass border-b border-white/10 px-6 py-3 flex items-center justify-between shadow-sm z-20">
-                    <div className="min-w-0">
-                        <h2 className="font-bold text-white text-sm truncate max-w-xs">{convTitle}</h2>
-                        <p className="text-xs text-gray-500 font-medium">
-                            {MODEL_OPTIONS.find(m => m.key === selectedModel)?.label}
-                        </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <StageBadge stage={stage} />
+                {/* Minimal header */}
+                <div className="bg-[#212121] border-b border-[#2a2a2a] px-5 py-2 flex items-center justify-between z-20">
+                    <StageBadge stage={stage} />
+                    <div className="flex items-center gap-3">
                         {stage === 'results' && (
                             <button onClick={() => setShowReferral(true)}
-                                className="flex items-center gap-1.5 bg-accent-blue hover:bg-accent-purple text-white px-3 py-1.5 rounded-xl text-xs font-bold transition-all ml-2 shadow-sm">
+                                className="flex items-center gap-1.5 text-[#888] hover:text-white text-[12px] transition-colors px-2.5 py-1 rounded-lg hover:bg-[#2f2f2f]">
                                 <Phone size={13} /> See a Doctor
                             </button>
                         )}
@@ -737,101 +721,106 @@ export default function Chat() {
                 </div>
 
                 {/* Messages */}
-                <div className="flex-1 overflow-y-auto px-4 md:px-8 py-6 w-full max-w-3xl mx-auto z-10">
+                <div className="flex-1 overflow-y-auto px-4 py-6 w-full max-w-3xl mx-auto z-10">
 
                     {convLoading && (
-                        <div className="flex items-center justify-center py-20 gap-3 text-gray-500">
-                            <div className="w-5 h-5 border-2 border-accent-blue border-t-transparent rounded-full animate-spin" />
-                            <span className="text-sm">Loading conversation…</span>
+                        <div className="flex items-center justify-center py-20 gap-3 text-[#666]">
+                            <Loader2 size={18} className="animate-spin text-[#888]" />
+                            <span className="text-sm">Loading conversation...</span>
                         </div>
                     )}
 
                     {isIdle && !convLoading && <EmptyState onNewChat={handleNewChat} />}
 
                     {!convLoading && messages
-                        .filter(msg => !msg.content?.startsWith('## 🩺 Curezy AI Health Assessment'))
                         .map((msg, i) => (
-                            <MessageBubble key={`${msg.role}-${i}-${msg.timestamp}`} message={msg} onRetry={handleRetry} />
+                            <MessageBubble
+                                key={`${msg.role}-${i}-${msg.timestamp}`}
+                                message={msg}
+                                onRetry={handleRetry}
+                                analysisResult={analysisResult}
+                                selectedModel={selectedModel}
+                                modelOptions={MODEL_OPTIONS}
+                                sessionId={backendConvIdRef.current}
+                                user={user}
+                            />
                         ))}
 
                     {showingAnalysis && !convLoading && <AnalysisBubble currentStep={analysisStep} />}
 
-                    {analysisResult && stage === 'results' && !convLoading && (
-                        <>
-                            <AnalysisCard
-                                {...analysisResult}
-                                modelLabel={MODEL_OPTIONS.find(m => m.key === selectedModel)?.label}
-                            />
-                            <FeedbackBar
-                                sessionId={backendConvIdRef.current}
-                                patientId={user?.id}
-                                topDiagnosis={
-                                    analysisResult?.analysis?.top_3_conditions?.[0]?.condition
-                                    || analysisResult?.analysis?.conditions?.[0]?.condition
-                                    || null
-                                }
-                            />
-                        </>
-                    )}
+                    {analysisResult && stage === 'results' && !convLoading && messages.length > 0 &&
+                        !messages.some(m => m.role === 'assistant' && m.content?.includes('## 🩺 Curezy AI Health Assessment')) && (
+                            /* Fallback only if the trigger message is missing from history */
+                            <>
+                                <AnalysisCard
+                                    {...analysisResult}
+                                    modelLabel={MODEL_OPTIONS.find(m => m.key === selectedModel)?.label}
+                                />
+                                <FeedbackBar
+                                    sessionId={backendConvIdRef.current}
+                                    patientId={user?.id}
+                                    topDiagnosis={
+                                        analysisResult?.analysis?.top_3_conditions?.[0]?.condition
+                                        || analysisResult?.analysis?.conditions?.[0]?.condition
+                                        || null
+                                    }
+                                />
+                            </>
+                        )}
 
                     {loading && !showingAnalysis && <TypingIndicator />}
                     <div ref={bottomRef} />
                 </div>
 
                 {/* Input area */}
-                <div className="glass border-t border-white/10 px-6 py-4 z-20 relative shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+                <div className="px-4 pb-4 pt-2 z-20">
                     <div className="max-w-3xl mx-auto">
 
+                        {/* Quick chips */}
                         {chips.length > 0 && !showingAnalysis && stage !== 'results' && (
                             <div className="flex flex-wrap gap-1.5 mb-3">
                                 {chips.map(chip => (
                                     <button key={chip} onClick={() => handleSend(chip)} disabled={loading}
-                                        className="text-xs font-semibold px-3 py-1.5 rounded-full border border-white/10 bg-surface/50 text-gray-200 hover:border-accent-blue hover:text-accent-blue hover:bg-accent-blue/10 transition-all disabled:opacity-40 shadow-sm backdrop-blur-sm">
+                                        className="text-[12px] px-3 py-1.5 rounded-full border border-[#3a3a3a] text-[#999] hover:bg-[#2f2f2f] hover:text-[#ddd] hover:border-[#555] transition-colors disabled:opacity-40">
                                         {chip}
                                     </button>
                                 ))}
                             </div>
                         )}
 
+                        {/* Input container */}
                         {!showingAnalysis && (
-                            <div className="flex items-end gap-2 bg-surface/50 border border-white/10 shadow-inner rounded-2xl px-4 py-3 focus-within:border-accent-blue focus-within:ring-2 focus-within:ring-accent-blue/20 focus-within:bg-surface-light transition-all">
-                                <div className="relative flex-shrink-0">
-                                    <button onClick={() => setShowSettings(!showSettings)} title="Settings & Uploads"
-                                        className={`p-1.5 rounded-lg transition-colors ${showSettings ? 'text-accent-blue bg-primary-50' : 'text-gray-500 hover:text-accent-blue'}`}>
-                                        <Settings2 size={18} />
-                                    </button>
-                                    {showSettings && (
-                                        <SettingsPopover
-                                            backendConvId={backendConvIdRef.current}
-                                            selectedModel={selectedModel}
-                                            onModelSelect={setSelectedModel}
-                                            onUploadDone={handleUploadDone}
-                                            onClose={() => setShowSettings(false)}
-                                        />
-                                    )}
+                            <div className="bg-[#2f2f2f] border border-[#3a3a3a] rounded-2xl focus-within:border-[#555] transition-colors">
+                                {/* Textarea row */}
+                                <div className="flex items-end gap-2 px-3 pt-3 pb-2">
+                                    <AttachDropdown backendConvId={backendConvIdRef.current} onUploadDone={handleUploadDone} />
+                                    <textarea
+                                        value={input} onChange={e => setInput(e.target.value)} onKeyDown={handleKeyDown}
+                                        placeholder={stage === 'results' ? 'Ask a follow-up question...' : 'Describe your symptoms...'}
+                                        rows={1} disabled={loading || convLoading}
+                                        className="flex-1 bg-transparent text-[14px] resize-none focus:outline-none text-[#ececec] placeholder-[#666] max-h-36 disabled:opacity-50 leading-relaxed"
+                                        style={{ minHeight: '24px' }}
+                                    />
                                 </div>
-                                <textarea
-                                    value={input} onChange={e => setInput(e.target.value)} onKeyDown={handleKeyDown}
-                                    placeholder={stage === 'results' ? 'Ask a follow-up question…' : 'Type your response…'}
-                                    rows={1} disabled={loading || convLoading}
-                                    className="flex-1 bg-transparent text-sm resize-none focus:outline-none text-white font-medium placeholder-slate-400 max-h-32 disabled:opacity-50"
-                                    style={{ minHeight: '24px' }}
-                                />
-                                <div className="flex items-center gap-1.5 flex-shrink-0">
-                                    <button onClick={toggleRecording} title={isRecording ? 'Stop' : 'Voice input'}
-                                        className={`p-1.5 rounded-lg transition-colors ${isRecording ? 'text-red-500 bg-red-50 animate-pulse border border-red-200' : 'text-gray-500 hover:text-accent-blue'}`}>
-                                        {isRecording ? <MicOff size={18} /> : <Mic size={18} />}
-                                    </button>
-                                    <button onClick={() => handleSend()} disabled={loading || convLoading || !input.trim()}
-                                        className="bg-accent-blue hover:bg-accent-purple active:bg-accent-purple/80 text-white p-2 rounded-xl transition-all duration-300 disabled:opacity-40 disabled:cursor-not-allowed shadow-md shadow-[0_0_15px_rgba(123,44,191,0.3)]">
-                                        <Send size={16} />
-                                    </button>
+                                {/* Bottom bar: model selector + actions */}
+                                <div className="flex items-center justify-between px-3 pb-2.5">
+                                    <ModelSelector selectedModel={selectedModel} onSelect={setSelectedModel} />
+                                    <div className="flex items-center gap-1">
+                                        <button onClick={toggleRecording} title={isRecording ? 'Stop' : 'Voice input'}
+                                            className={`p-1.5 rounded-lg transition-colors ${isRecording ? 'text-red-400 animate-pulse' : 'text-[#666] hover:text-[#aaa]'}`}>
+                                            {isRecording ? <MicOff size={18} /> : <Mic size={18} />}
+                                        </button>
+                                        <button onClick={() => handleSend()} disabled={loading || convLoading || !input.trim()}
+                                            className="bg-white text-[#212121] p-1.5 rounded-lg transition-all disabled:opacity-20 disabled:cursor-not-allowed hover:bg-[#e5e5e5]">
+                                            <ArrowUp size={16} strokeWidth={2.5} />
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         )}
 
-                        <p className="text-center text-xs font-semibold text-gray-500 mt-2 tracking-wide uppercase">
-                            Enter to send · Curezy AI is not a substitute for professional medical advice
+                        <p className="text-center text-[11px] text-[#555] mt-2.5">
+                            Curezy AI is not a substitute for professional medical advice
                         </p>
                     </div>
                 </div>
