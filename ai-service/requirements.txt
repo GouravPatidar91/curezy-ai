@@ -46,3 +46,7 @@ pydicom>=2.4.4
 opencv-python-headless>=4.9.0.80
 # scispacy>=0.5.4 <-- removed to fix Render build
 resend>=0.8.0
+
+# Semantic Caching
+faiss-cpu>=1.8.0
+sentence-transformers>=3.0.0

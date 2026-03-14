@@ -22,6 +22,7 @@ from security.api_key_manager import APIKeyManager
 from chat.conversation_manager import ConversationManager, MessageRole, IntakeStage
 from chat.intake_engine import IntakeEngine
 from chat.document_parser import DocumentParser
+from agents.semantic_cache import SemanticCache
 from finetune.pipeline import start_pipeline, get_job, list_jobs
 from finetune.deploy import OllamaDeploy
 from utils.email_service import EmailService
@@ -78,6 +79,7 @@ conversation_manager = ConversationManager()
 intake_engine        = IntakeEngine(conversation_manager)
 document_parser      = DocumentParser()
 xray_analyzer        = ChestXRayAnalyzer()
+semantic_cache       = SemanticCache()
 
 if os.path.isdir("static"):
     app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -135,6 +137,9 @@ class ChatStructuredInput(BaseModel):
     stage: str
     data: dict  # widget-submitted structured data
     selected_model: Optional[str] = None
+
+class ResumeInput(BaseModel):
+    conversation_id: str
 
 class ChatCompletionMessage(BaseModel):
     role: str
@@ -505,6 +510,30 @@ def start_conversation(
     }
 
 
+@app.post("/chat/resume")
+@limiter.limit("20/minute")
+def resume_conversation(
+    request: Request,
+    data: ResumeInput
+):
+    """Resume an existing conversation from DB if not in memory."""
+    conversation_id = data.conversation_id
+    state = conversation_manager.get_conversation(conversation_id)
+    if not state:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    
+    stage_meta = intake_engine.get_stage_metadata(state.stage)
+    return {
+        "success": True,
+        "conversation_id": state.conversation_id,
+        "stage": state.stage.value,
+        "stage_metadata": stage_meta,
+        "collected_data": state.collected_data,
+        "analysis_result": state.analysis_result,
+        "messages": [m.dict() for m in state.messages]
+    }
+
+
 @app.post("/chat/message")
 @limiter.limit("30/minute")
 async def send_chat_message(
@@ -744,6 +773,38 @@ async def _run_council_analysis(conversation_id: str, state, selected_model: str
 
     payload = conversation_manager.build_analysis_payload(conversation_id)
     conversation_manager.update_stage(conversation_id, IntakeStage.ANALYZING)
+    
+    # --- Semantic Cache Check for Instant Response ---
+    # Only cache if we are defaulting to council and not using a specific single model
+    if not use_single:
+        cached_result = semantic_cache.get_cached_result(payload)
+        if cached_result:
+            clinical_out, conf_out, data_gaps_out = cached_result
+            result_message = _format_analysis_for_chat(clinical_out, conf_out, data_gaps_out)
+            
+            # Save context for UI
+            conversation_manager.set_analysis_result(conversation_id, {
+                "analysis": clinical_out,
+                "confidence": conf_out,
+                "data_gaps": data_gaps_out
+            })
+            conversation_manager.add_message(
+                conversation_id=conversation_id,
+                role=MessageRole.ASSISTANT,
+                content=result_message
+            )
+            return {
+                "success": True,
+                "message": result_message,
+                "stage": "results",
+                "stage_metadata": intake_engine.get_stage_metadata(IntakeStage.RESULTS),
+                "analysis": clinical_out,
+                "confidence": conf_out,
+                "data_gaps": data_gaps_out,
+                "imaging_used": len(state.images_uploaded) > 0,
+                "reports_used": len(state.reports_uploaded) > 0,
+                "cached": True
+            }
 
     try:
         from utils.runpod_client import RunpodClient
@@ -811,12 +872,28 @@ async def _run_council_analysis(conversation_id: str, state, selected_model: str
                 patient_state_dict, clinical_output_dict
             )
 
+        # ── Add successful result to Semantic Cache ──
+        if not use_single:
+            semantic_cache.add_to_cache(
+                patient_state=patient_state_dict,
+                clinical_analysis=clinical_output_dict,
+                confidence_report=confidence_report_dict,
+                data_gaps=data_gaps
+            )
+
         # ── Regardless of Cloud vs Local, format message and update Audit Logs ──
         result_message = _format_analysis_for_chat(
             clinical_output_dict, confidence_report_dict, data_gaps
         )
 
-        conversation_manager.set_analysis_result(conversation_id, clinical_output_dict)
+        # Save full context for state resumption
+        full_analysis_context = {
+            "analysis": clinical_output_dict,
+            "confidence": confidence_report_dict,
+            "data_gaps": data_gaps
+        }
+        conversation_manager.set_analysis_result(conversation_id, full_analysis_context)
+        
         conversation_manager.add_message(
             conversation_id=conversation_id,
             role=MessageRole.ASSISTANT,
