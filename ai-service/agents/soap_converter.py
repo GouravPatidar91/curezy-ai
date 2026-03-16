@@ -44,67 +44,86 @@ def _classify_onset(duration_str: str, symptoms: List[str]) -> str:
 
 def convert_to_soap(patient_state: dict) -> dict:
     """
-    Convert raw patient_state to structured SOAP note.
-    Returns a dict with keys: subjective, objective, context, soap_string.
+    Convert structured patient_state to clinical SOAP note.
+    Handles the new nested structure (patient_info, opqrst, etc.).
     """
-    symptoms = [str(s) for s in patient_state.get("symptoms", [])]
-    history  = [str(h) for h in patient_state.get("medical_history", [])]
-    meds     = []
-    for m in patient_state.get("medications", []):
-        meds.append(m.get("name", str(m)) if isinstance(m, dict) else str(m))
-    risks    = [str(r) for r in patient_state.get("risk_factors", [])]
-    age      = patient_state.get("age", "unknown")
-    gender   = patient_state.get("gender", "unknown")
-    duration = patient_state.get("symptom_duration", "")
+    # ── 1. Extract Basic Info ──
+    pi = patient_state.get("patient_info", {})
+    age = pi.get("age") or patient_state.get("age", "unknown")
+    gender = pi.get("gender") or patient_state.get("gender", "unknown")
+    location = pi.get("location") or patient_state.get("location", "India")
 
-    # Build lab objective data
-    lab_lines = []
-    for lab in patient_state.get("lab_reports", []):
-        if isinstance(lab, dict):
-            flag = "⚠️ ABNORMAL" if lab.get("is_abnormal") else "normal"
-            lab_lines.append(f"  • {lab.get('test_name', 'Unknown')}: {lab.get('value', 'N/A')} ({flag})")
+    # ── 2. Extract Symptoms & OPQRST ──
+    opqrst = patient_state.get("opqrst", {})
+    chief_complaint = patient_state.get("chief_complaint") or ", ".join(patient_state.get("symptoms", []))
+    
+    onset = opqrst.get("onset") or patient_state.get("symptom_duration", "Not specified")
+    provocation = opqrst.get("provocation") or "Not specified"
+    quality = opqrst.get("quality") or "Not specified"
+    region = opqrst.get("region") or "Not specified"
+    severity = opqrst.get("severity") or "Not specified"
+    timing = opqrst.get("timing") or "Not specified"
 
-    duration_class = _classify_duration(duration)
-    onset_type     = _classify_onset(duration, symptoms)
+    # ── 3. Extract Histories ──
+    def to_list(val):
+        if not val: return []
+        if isinstance(val, list): return val
+        return [s.strip() for s in str(val).split(",") if s.strip()]
 
-    # ── Subjective (patient-reported) ────────────────────────────────────────
-    subjective = (
-        f"Chief complaint: {', '.join(symptoms) if symptoms else 'Not specified'}\n"
-        f"Duration: {duration or 'Not specified'} [{duration_class}]\n"
-        f"Onset: {onset_type}"
-    )
+    associated = to_list(patient_state.get("associated_symptoms"))
+    history = to_list(patient_state.get("medical_history")) or to_list(patient_state.get("medical_history_text"))
+    meds = to_list(patient_state.get("medications")) or to_list(patient_state.get("medications_text"))
+    allergies = to_list(patient_state.get("allergies"))
+    family_history = to_list(patient_state.get("family_history"))
+    
+    lifestyle = patient_state.get("lifestyle", {})
+    smoking = lifestyle.get("smoking") or "unknown"
+    alcohol = lifestyle.get("alcohol") or "unknown"
 
-    # ── Objective (clinical data) ─────────────────────────────────────────────
-    objective_parts = [f"Age: {age}, Gender: {gender}"]
-    if lab_lines:
-        objective_parts.append("Laboratory results:\n" + "\n".join(lab_lines))
-    else:
-        objective_parts.append("Laboratory results: None provided")
-    objective = "\n".join(objective_parts)
+    # ── 4. Build SOAP String ──────────────────────────────────────────────────
+    
+    # S (Subjective)
+    subjective_lines = [
+        f"Chief Complaint: {chief_complaint}",
+        f"Onset: {onset}",
+        f"Provocation/Palliation: {provocation}",
+        f"Quality: {quality}",
+        f"Region/Radiation: {region}",
+        f"Severity: {severity}/10",
+        f"Timing: {timing}",
+        f"Associated Symptoms: {', '.join(associated) if associated else 'None'}"
+    ]
+    subjective = "\n".join(subjective_lines)
 
-    # ── Context (PMH, Meds, RFs) ──────────────────────────────────────────────
-    context = (
-        f"Past Medical History (PMH): {', '.join(history) if history else 'No known conditions'}\n"
-        f"Current Medications: {', '.join(meds) if meds else 'None'}\n"
-        f"Risk Factors: {', '.join(risks) if risks else 'None identified'}"
-    )
+    # O (Objective)
+    objective = f"Age: {age}, Gender: {gender}, Location: {location}"
+    if patient_state.get("red_flag_detected"):
+        objective += "\n⚠️ RED FLAG ALERT: Critical symptoms detected."
 
-    # ── Full SOAP string for prompt injection ─────────────────────────────────
+    # C (Context)
+    context_lines = [
+        f"Medical History: {', '.join(history) if history else 'None'}",
+        f"Medications: {', '.join(meds) if meds else 'None'}",
+        f"Allergies: {', '.join(allergies) if allergies else 'None'}",
+        f"Lifestyle: Smoking: {smoking}, Alcohol: {alcohol}",
+        f"Family History: {', '.join(family_history) if family_history else 'None'}"
+    ]
+    context = "\n".join(context_lines)
+
     soap_string = (
-        f"S (Subjective — Patient Reported):\n{subjective}\n\n"
-        f"O (Objective — Clinical Data):\n{objective}\n\n"
-        f"C (Context — History & Risk):\n{context}"
+        f"S (Subjective):\n{subjective}\n\n"
+        f"O (Objective):\n{objective}\n\n"
+        f"C (Context):\n{context}"
     )
 
     return {
-        "subjective":     subjective,
-        "objective":      objective,
-        "context":        context,
-        "soap_string":    soap_string,
-        "symptoms":       symptoms,
-        "duration_class": duration_class,
-        "onset_type":     onset_type,
-        "age":            age,
-        "gender":         gender,
-        "has_labs":       bool(lab_lines),
+        "subjective": subjective,
+        "objective": objective,
+        "context": context,
+        "soap_string": soap_string,
+        "symptoms": [chief_complaint] + associated,
+        "age": age,
+        "gender": gender,
+        "location": location,
+        "red_flag_detected": patient_state.get("red_flag_detected", False)
     }

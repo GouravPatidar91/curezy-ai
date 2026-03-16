@@ -299,30 +299,37 @@ Step 3: Must distinguish STEMI from NSTEMI — ECG critical. Aortic dissection m
 {"doctor":"Curezy AURIS","specialty":"Differential Diagnosis","conditions":[{"condition":"Acute Myocardial Infarction","probability":72,"confidence":82,"evidence":["Left arm radiation — classic ACS referred pain pattern","Diaphoresis (sympathetic activation) — ACS marker","Duration >30 min beyond typical angina threshold","Male 55yo hypertensive — high Framingham cardiac risk"],"reasoning":"Classic STEMI/NSTEMI presentation. Immediate 12-lead ECG + cath lab activation."},{"condition":"Unstable Angina","probability":20,"confidence":60,"evidence":["Chest pain pattern consistent","No ST elevation data available to confirm MI"],"reasoning":"Cannot distinguish from NSTEMI without troponin. Treat as ACS protocol."},{"condition":"Aortic Dissection","probability":8,"confidence":40,"evidence":["Acute severe chest pain","Hypertension — dissection risk factor"],"reasoning":"Must exclude with bilateral BP measurement and CT-angiogram if dissection suspected."}],"missing_data":["12-lead ECG urgent","Troponin I/T serials","Bilateral BP measurement","CXR"],"urgent_flags":["EMERGENCY: Activate cath lab — PCI within 90 minutes"],"reasoning_summary":"High-probability ACS in hypertensive male. Immediate ECG, cath lab activation, aspirin 300mg."}
 """
 
-    def diagnosis_prompt(self, soap: dict, doctor: dict) -> str:
+    def diagnosis_prompt(self, soap: dict, doctor: dict, raw_payload: Optional[dict] = None) -> str:
         """
-        Phase 1.2: Prompt with few-shot examples only — NO <> schema template.
-        Phase 2.1: Uses SOAP-structured patient data instead of raw symptom blob.
-        Phase 2 (RAG): Injects clinically grounded candidate conditions.
+        Phase 1.2: Prompt with few-shot examples only.
+        Updated to include the full structured clinical JSON.
         """
         rag_block   = format_rag_block(soap["symptoms"])
         red_flags   = get_red_flags(soap["symptoms"])
         rf_str      = ", ".join(red_flags) if red_flags else "none identified"
         soap_string = soap["soap_string"]
+        
+        # Include raw_payload as JSON for the model to see the standardized structure
+        raw_json = json.dumps(raw_payload, indent=1) if raw_payload else "{}"
 
         return f"""You are {doctor['name']}, {doctor['specialty']}. Your role: {doctor['role']}.
+You are conducting a formal clinical assessment using the OPQRST/SOCRATES framework.
 
 CRITICAL RULES — Follow these exactly:
 1. Write your reasoning as Step 1, Step 2, Step 3 BEFORE the JSON.
 2. Then output JSON formatted EXACTLY like the examples below.
 3. Condition names must be REAL medical diagnoses (e.g., "Influenza A", "Bacterial Meningitis", "Acute Appendicitis").
 4. Probability values must be different from each other and sum to approximately 100.
-5. Evidence items must cite SPECIFIC findings from this patient's data (numbers, timing, location).
+5. Evidence items must cite SPECIFIC findings from the OPQRST data (Onset, Provocation, etc.).
 6. Do NOT copy placeholders or generic terms — write real clinical language.
+7. Strictly respect the structured patient data provided below.
 
 {self._FEW_SHOT}
 
-=== YOUR PATIENT ===
+=== YOUR PATIENT (Structured Clinical Data) ===
+{raw_json}
+
+=== PATIENT SUMMARY (SOAP) ===
 {soap_string}
 Red Flags to Consider: {rf_str}
 
@@ -615,7 +622,7 @@ class ClinicalReasoner:
         """
         print(f"[Council] {doctor['name']} analyzing...")
         t0 = time.time()
-        prompt = self.prompts.diagnosis_prompt(soap, doctor)
+        prompt = self.prompts.diagnosis_prompt(soap, doctor, raw_payload=patient_state)
         temperatures = [0.05, 0.2, 0.4]
 
         for attempt in range(3):

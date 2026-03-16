@@ -49,6 +49,12 @@ class PatientState(BaseModel):
     symptoms: List[str]
     symptom_duration: Optional[str]
     symptom_onset: Optional[str]
+    # Standardized OPQRST additions
+    symptom_provocation: Optional[str] = None
+    symptom_quality: Optional[str] = None
+    symptom_region: Optional[str] = None
+    symptom_severity: Optional[str] = None
+    
     medications: List[Medication]
     lab_reports: List[LabReport]
     medical_history: List[str]
@@ -356,7 +362,13 @@ class PatientPreprocessor:
         else:
             missing.append('past medical history')
 
-        return score, missing
+        # Add OPQRST completeness (bonus points for structured data)
+        if patient_state.get('symptom_provocation'): score += 5
+        if patient_state.get('symptom_quality'): score += 5
+        if patient_state.get('symptom_region'): score += 5
+        if patient_state.get('symptom_severity'): score += 5
+
+        return min(100, score), missing
 
     def process(
         self,
@@ -368,7 +380,9 @@ class PatientPreprocessor:
         dicom_path: str = None,
         age: int = None,
         gender: str = None,
-        medications_text: str = ""
+        medications_text: str = "",
+        # New structured inputs
+        opqrst: Dict[str, Any] = None
     ) -> PatientState:
 
         # Extract all components
@@ -401,7 +415,11 @@ class PatientPreprocessor:
             'gender': gender,
             'lab_reports': lab_reports,
             'medications': medications,
-            'medical_history': history
+            'medical_history': history,
+            'symptom_provocation': opqrst.get('provocation') if opqrst else None,
+            'symptom_quality': opqrst.get('quality') if opqrst else None,
+            'symptom_region': opqrst.get('region') if opqrst else None,
+            'symptom_severity': str(opqrst.get('severity')) if opqrst else None
         }
 
         completeness_score, missing_data = self.calculate_completeness(state_dict)
@@ -412,7 +430,11 @@ class PatientPreprocessor:
             gender=gender,
             symptoms=symptoms,
             symptom_duration=duration,
-            symptom_onset=onset,
+            symptom_onset=opqrst.get('onset') if opqrst else onset,
+            symptom_provocation=state_dict['symptom_provocation'],
+            symptom_quality=state_dict['symptom_quality'],
+            symptom_region=state_dict['symptom_region'],
+            symptom_severity=state_dict['symptom_severity'],
             medications=medications,
             lab_reports=lab_reports,
             medical_history=history,

@@ -169,6 +169,7 @@ def handler(job: dict) -> dict:
             medications_text     = inp.get("medications_text", ""),
             age                  = inp.get("age", None),
             gender               = inp.get("gender", None),
+            opqrst               = inp.get("opqrst", None)
         )
 
         import threading

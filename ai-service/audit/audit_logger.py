@@ -50,6 +50,17 @@ class AuditLogger:
                 "doctor_id": doctor_id,
                 "timestamp": datetime.now().isoformat(),
                 "symptoms": json.dumps(patient_state.get("symptoms", [])),
+                "clinical_context": json.dumps({
+                    "opqrst": {
+                        "onset": patient_state.get("symptom_onset"),
+                        "provocation": patient_state.get("symptom_provocation"),
+                        "quality": patient_state.get("symptom_quality"),
+                        "region": patient_state.get("symptom_region"),
+                        "severity": patient_state.get("symptom_severity")
+                    },
+                    "medical_history": patient_state.get("medical_history", []),
+                    "risk_factors": patient_state.get("risk_factors", [])
+                }),
                 "top_conditions": json.dumps(serialized_conditions),
                 "consensus_confidence": float(
                     clinical_analysis.get("consensus_confidence", 0)

@@ -99,6 +99,7 @@ class PatientInput(BaseModel):
     age: Optional[int] = None
     gender: Optional[str] = None
     doctor_id: Optional[str] = None
+    opqrst: Optional[dict] = None
 
 class LoginInput(BaseModel):
     username: str
@@ -231,7 +232,8 @@ def preprocess_patient(
             lab_text=data.lab_text,
             medications_text=data.medications_text,
             age=data.age,
-            gender=data.gender
+            gender=data.gender,
+            opqrst=data.opqrst
         )
         return {"success": True, "patient_state": patient_state.dict()}
     except Exception as e:
@@ -852,7 +854,8 @@ async def _run_council_analysis(conversation_id: str, state, selected_model: str
                 lab_text=payload.get("lab_text", ""),
                 medications_text=payload.get("medications_text", ""),
                 age=payload.get("age"),
-                gender=payload.get("gender")
+                gender=payload.get("gender"),
+                opqrst=payload.get("opqrst")
             )
             patient_state_dict = patient_state.dict()
 

@@ -15,12 +15,21 @@ import DoctorReferral from '../components/DoctorReferral'
 
 const STAGE_MAP = {
     greeting: { label: 'Starting' },
+    basic_info: { label: 'Patient Info' },
     chief_complaint: { label: 'Chief Complaint' },
-    symptom_detail: { label: 'Symptoms' },
-    associated_symptoms: { label: 'Associated' },
-    timeline: { label: 'Timeline' },
-    history: { label: 'History' },
+    onset: { label: 'Onset' },
+    provocation: { label: 'Provocation' },
+    quality: { label: 'Quality' },
+    region: { label: 'Region' },
+    severity: { label: 'Severity' },
+    timing: { label: 'Timing' },
+    associated_symptoms: { label: 'Associated symptoms' },
+    history: { label: 'Medical History' },
     medications: { label: 'Medications' },
+    allergies: { label: 'Allergies' },
+    lifestyle: { label: 'Lifestyle' },
+    family_history: { label: 'Family History' },
+    red_flags: { label: 'Red Flags' },
     reports: { label: 'Reports' },
     imaging: { label: 'Imaging' },
     confirming: { label: 'Ready to Proceed?' },
@@ -303,11 +312,18 @@ function AttachDropdown({ backendConvId, onUploadDone }) {
 
 
 const STAGE_CHIP_OPTIONS = {
-    symptom_detail: ['Sharp pain', 'Dull ache', 'Burning', 'Throbbing', 'Mild (3/10)', 'Moderate (6/10)', 'Severe (9/10)'],
+    basic_info: ['Male, 25', 'Female, 30', 'Male, 45', 'Female, 50', 'Prefer not to say'],
+    onset: ['Just now', '1 hour ago', 'Today', 'Yesterday', 'A few days ago', 'Months ago'],
+    provocation: ['Movement', 'Eating', 'Pressure', 'Resting', 'Coughing', 'Nothing makes it better'],
+    quality: ['Sharp/Stabbing', 'Dull Ache', 'Burning', 'Throbbing', 'Pressure/Tightness', 'Cramping'],
+    region: ['Chest', 'Abdomen', 'Head', 'Back', 'Left arm', 'Right leg', 'Localized', 'Spreading'],
+    severity: ['Mild (2/10)', 'Moderate (5/10)', 'Severe (8/10)', 'Worst ever (10/10)'],
+    timing: ['Constant', 'Comes and goes', 'Getting worse', 'Improved', 'Worse at night'],
     associated_symptoms: ['Fever', 'Nausea', 'Fatigue', 'Dizziness', 'Shortness of breath', 'Headache', 'None of these'],
-    timeline: ['Started today', 'Since yesterday', 'Past 3 days', 'Past week', 'Over a month', 'Comes and goes'],
-    history: ['Diabetes', 'Hypertension', 'Asthma', 'Heart disease', 'No conditions'],
-    medications: ['No medications', 'Paracetamol', 'Metformin', 'Amlodipine', 'Aspirin'],
+    history: ['Diabetes', 'Hypertension', 'Asthma', 'Heart disease', 'No prior conditions'],
+    medications: ['No medications', 'Paracetamol/Tylenol', 'Aspirin', 'Antacids', 'Prescription meds'],
+    lifestyle: ['Non-smoker', 'Occasional smoker', 'Regular smoker', 'Non-drinker', 'Social drinker'],
+    allergies: ['No allergies', 'Penicillin', 'Sulfa drugs', 'Peanuts', 'Latex'],
     confirming: ['Yes, proceed', 'Yes, start the analysis', 'Go ahead'],
 }
 
@@ -470,7 +486,13 @@ export default function Chat() {
                     try {
                         const res = await resumeChat(convId)
                         if (res.data?.success) {
-                            setMessages(res.data.messages || [])
+                            const fetchedMessages = res.data.messages || []
+                            if (fetchedMessages.length > 0) {
+                                setMessages(fetchedMessages)
+                            } else {
+                                const localMsgs = await dbLoadMessages(convId)
+                                setMessages(localMsgs)
+                            }
                             setStage(res.data.stage || 'chief_complaint')
                             if (res.data.analysis_result) {
                                 const ar = res.data.analysis_result
@@ -522,7 +544,13 @@ export default function Chat() {
         try {
             const res = await resumeChat(selectedId)
             if (res.data?.success) {
-                setMessages(res.data.messages || [])
+                const fetchedMessages = res.data.messages || []
+                if (fetchedMessages.length > 0) {
+                    setMessages(fetchedMessages)
+                } else {
+                    const localMsgs = await dbLoadMessages(selectedId)
+                    setMessages(localMsgs)
+                }
                 setStage(res.data.stage || 'chief_complaint')
                 if (res.data.analysis_result) {
                     const ar = res.data.analysis_result
@@ -626,6 +654,11 @@ export default function Chat() {
 
                 if (normAnalysis) {
                     setAnalysisResult({ analysis: normAnalysis, confidence: res.data.confidence, dataGaps: res.data.data_gaps })
+                    
+                    const aiMsg = { role: 'assistant', content: reply, timestamp: new Date().toISOString() }
+                    setMessages(prev => [...prev, aiMsg])
+                    await dbInsertMessage(user?.id, convId, 'assistant', reply)
+                    
                     clearInterval(analysisTimerRef.current)
                     setAnalysisStep('done')
                     setTimeout(() => { setShowingAnalysis(false); setStage('results'); setShowReferral(true) }, 3000)
@@ -697,7 +730,8 @@ export default function Chat() {
         dbInsertMessage(user?.id, convId, 'assistant', summary)
     }, [user?.id, convId])
 
-    const isIdle = messages.length === 0 && !loading && !convLoading
+    // Simplified isIdle logic: Only idle if no conversation is selected AND no messages
+    const isIdle = !convId && messages.length === 0 && !loading && !convLoading
     const chips = STAGE_CHIP_OPTIONS[stage] || []
 
     return (

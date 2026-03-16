@@ -22,12 +22,22 @@ from chat.conversation_manager import ConversationManager, MessageRole, IntakeSt
 
 STAGE_ORDER = [
     IntakeStage.GREETING,
+    IntakeStage.BASIC_INFO,
     IntakeStage.CHIEF_COMPLAINT,
-    IntakeStage.SYMPTOM_DETAIL,
+    IntakeStage.OPQRST_ONSET,
+    IntakeStage.OPQRST_PROVOCATION,
+    IntakeStage.OPQRST_QUALITY,
+    IntakeStage.OPQRST_REGION,
+    IntakeStage.OPQRST_SEVERITY,
+    IntakeStage.OPQRST_TIMING,
     IntakeStage.ASSOCIATED,
-    IntakeStage.TIMELINE,
     IntakeStage.HISTORY,
     IntakeStage.MEDICATIONS,
+    IntakeStage.ALLERGIES,
+    IntakeStage.LIFESTYLE,
+    IntakeStage.FAMILY_HISTORY,
+    IntakeStage.RED_FLAGS,
+    IntakeStage.REPORTS,
     IntakeStage.CONFIRMING,
     IntakeStage.ANALYZING,
     IntakeStage.RESULTS,
@@ -38,36 +48,58 @@ STAGE_ORDER = [
 # ---------------------------------------------------------------------------
 
 STAGE_DIRECTIVE = {
+    IntakeStage.BASIC_INFO: (
+        "Ask the patient for their BASIC information: age, gender, and current location. "
+        "Ask this in one friendly sentence."
+    ),
     IntakeStage.CHIEF_COMPLAINT: (
         "Ask the patient ONE open question: what is the main problem or symptom that "
         "brings them here today? Do not ask anything else yet."
     ),
-    IntakeStage.SYMPTOM_DETAIL: (
-        "The patient described their main problem. Now ask them ONLY about the severity "
-        "(on a scale of 1–10) and location of the symptom. Nothing else."
+    IntakeStage.OPQRST_ONSET: (
+        "Onset: Ask the patient WHEN exactly the symptom first began and if it started suddenly or gradually."
+    ),
+    IntakeStage.OPQRST_PROVOCATION: (
+        "Provocation / Palliation: Ask the patient what makes the symptom better or worse (e.g. activity, rest, eating)."
+    ),
+    IntakeStage.OPQRST_QUALITY: (
+        "Quality: Ask the patient to describe the sensation (e.g. sharp, dull, throbbing, burning)."
+    ),
+    IntakeStage.OPQRST_REGION: (
+        "Region / Radiation: Ask WHERE exactly the symptom is and if it spreads to another area."
+    ),
+    IntakeStage.OPQRST_SEVERITY: (
+        "Severity: Ask the patient to rate the severity on a scale of 1–10 (1=mild, 10=worst)."
+    ),
+    IntakeStage.OPQRST_TIMING: (
+        "Timing: Ask how often the symptom occurs (constant, intermittent, getting worse, improving)."
     ),
     IntakeStage.ASSOCIATED: (
-        "You know the main symptom, severity and location. Ask ONLY whether they have "
-        "any other symptoms alongside it (e.g. fever, nausea, fatigue). "
-        "Keep it brief — one question."
-    ),
-    IntakeStage.TIMELINE: (
-        "You know the symptoms. Ask ONLY how long these symptoms have been present and "
-        "when exactly they started. One question."
+        "Associated Symptoms: Ask whether they have any other symptoms alongside it (e.g. nausea, light sensitivity, fever). "
+        "Customize your suggestion based on the chief complaint (e.g. if headache, suggest nausea)."
     ),
     IntakeStage.HISTORY: (
-        "You know the symptoms and timeline. Ask ONLY about past medical conditions, "
-        "previous surgeries, or known allergies. One question."
+        "Medical History: Ask if they have any known medical conditions like diabetes, hypertension, or asthma."
     ),
     IntakeStage.MEDICATIONS: (
-        "You know the medical history. Ask ONLY whether the patient is currently taking "
-        "any medications or supplements. One question."
+        "Medications: Ask if they are currently taking any medications, including dosage and frequency."
+    ),
+    IntakeStage.ALLERGIES: (
+        "Allergies: Ask if they have any allergies to medications, foods, or environmental factors."
+    ),
+    IntakeStage.LIFESTYLE: (
+        "Lifestyle: Ask about lifestyle factors: smoking, alcohol consumption, exercise, and sleep hours."
+    ),
+    IntakeStage.FAMILY_HISTORY: (
+        "Family History: Ask about hereditary diseases in the family (e.g. heart disease, diabetes, cancer)."
+    ),
+    IntakeStage.RED_FLAGS: (
+        "Red-Flag Screening: Perform a final check for any dangerous 'red-flag' symptoms they might have missed "
+        "(e.g. sudden weakness, crushing chest pain, speech difficulty)."
     ),
     IntakeStage.CONFIRMING: (
         "You have gathered all the necessary information. Write a SHORT 3–4 line summary "
-        "of what you've learned (symptoms, duration, history, medications). Then ask "
-        "'Would you like me to proceed with the diagnosis now?' "
-        "Do NOT ask any new medical questions."
+        "of what you've learned. Then ask 'Would you like me to proceed with the diagnosis now?'"
     ),
 }
 
@@ -113,15 +145,24 @@ class IntakeEngine:
     def get_stage_metadata(self, stage: IntakeStage) -> dict:
         """Minimal metadata the frontend needs for badge / chip hints."""
         meta = {
-            IntakeStage.CHIEF_COMPLAINT: {"title": "Chief Complaint",    "can_skip": False},
-            IntakeStage.SYMPTOM_DETAIL:  {"title": "Symptom Details",    "can_skip": False},
-            IntakeStage.ASSOCIATED:      {"title": "Associated Symptoms", "can_skip": True},
-            IntakeStage.TIMELINE:        {"title": "Timeline",            "can_skip": False},
-            IntakeStage.HISTORY:         {"title": "Medical History",     "can_skip": True},
-            IntakeStage.MEDICATIONS:     {"title": "Medications",         "can_skip": True},
-            IntakeStage.CONFIRMING:      {"title": "Ready to Proceed?",   "can_skip": False},
-            IntakeStage.ANALYZING:       {"title": "Analyzing…",          "can_skip": False},
-            IntakeStage.RESULTS:         {"title": "Results",             "can_skip": False},
+            IntakeStage.BASIC_INFO:         {"title": "Personal info",       "can_skip": False},
+            IntakeStage.CHIEF_COMPLAINT:    {"title": "Chief Complaint",    "can_skip": False},
+            IntakeStage.OPQRST_ONSET:       {"title": "Onset",               "can_skip": False},
+            IntakeStage.OPQRST_PROVOCATION: {"title": "Provocation",         "can_skip": False},
+            IntakeStage.OPQRST_QUALITY:     {"title": "Quality",             "can_skip": False},
+            IntakeStage.OPQRST_REGION:      {"title": "Location",            "can_skip": False},
+            IntakeStage.OPQRST_SEVERITY:    {"title": "Severity",            "can_skip": False},
+            IntakeStage.OPQRST_TIMING:      {"title": "Timing",              "can_skip": False},
+            IntakeStage.ASSOCIATED:         {"title": "Associated",          "can_skip": True},
+            IntakeStage.HISTORY:            {"title": "Medical History",     "can_skip": True},
+            IntakeStage.MEDICATIONS:        {"title": "Medications",         "can_skip": True},
+            IntakeStage.ALLERGIES:          {"title": "Allergies",           "can_skip": True},
+            IntakeStage.LIFESTYLE:          {"title": "Lifestyle",           "can_skip": True},
+            IntakeStage.FAMILY_HISTORY:     {"title": "Family History",      "can_skip": True},
+            IntakeStage.RED_FLAGS:          {"title": "Safety Check",        "can_skip": False},
+            IntakeStage.REPORTS:            {"title": "Reports",             "can_skip": True},
+            IntakeStage.CONFIRMING:         {"title": "Ready?",             "can_skip": False},
+            IntakeStage.ANALYZING:          {"title": "Analyzing…",          "can_skip": False},
         }
         return meta.get(stage, {"title": stage.value.replace("_", " ").title(), "can_skip": False})
 
@@ -181,7 +222,7 @@ class IntakeEngine:
             state = self.cm.get_conversation(conversation_id)
 
             # Check imaging need after symptoms are known
-            if next_stage in (IntakeStage.TIMELINE, IntakeStage.ASSOCIATED):
+            if next_stage in (IntakeStage.OPQRST_TIMING, IntakeStage.ASSOCIATED):
                 self._detect_imaging(conversation_id, state)
 
         # ── Generate response for the next stage ──
@@ -194,27 +235,51 @@ class IntakeEngine:
     def _store_stage_data(self, conv_id: str, stage: IntakeStage, text: str, state):
         """Map the user's reply to the right field in collected_data."""
         cd = state.collected_data or {}
-        if stage == IntakeStage.CHIEF_COMPLAINT and not cd.get("chief_complaint"):
+        
+        if stage == IntakeStage.BASIC_INFO:
+            # We trust Groq's question prompted for: age, gender, location
+            # For simplicity, we store the full text; clinical reasoner will parse later.
+            self.cm.update_collected_data(conv_id, "patient_info_raw", text)
+            # Basic regex for age
+            age_match = re.search(r"(\d{1,2})", text)
+            if age_match: self.cm.update_collected_data(conv_id, "age", int(age_match.group(1)))
+            if "male" in text.lower(): self.cm.update_collected_data(conv_id, "gender", "male")
+            elif "female" in text.lower(): self.cm.update_collected_data(conv_id, "gender", "female")
+
+        elif stage == IntakeStage.CHIEF_COMPLAINT:
             self.cm.update_collected_data(conv_id, "chief_complaint", text)
-            self.cm.update_collected_data(conv_id, "symptoms_text", text)
-        elif stage == IntakeStage.SYMPTOM_DETAIL:
-            existing = cd.get("symptoms_text", cd.get("chief_complaint", ""))
-            self.cm.update_collected_data(conv_id, "symptoms_text", f"{existing}. Detail: {text}")
-            # Extract severity number if present
+            
+        elif stage == IntakeStage.OPQRST_ONSET:
+            self.cm.update_collected_data(conv_id, "onset", text)
+        elif stage == IntakeStage.OPQRST_PROVOCATION:
+            self.cm.update_collected_data(conv_id, "provocation", text)
+        elif stage == IntakeStage.OPQRST_QUALITY:
+            self.cm.update_collected_data(conv_id, "quality", text)
+        elif stage == IntakeStage.OPQRST_REGION:
+            self.cm.update_collected_data(conv_id, "region", text)
+        elif stage == IntakeStage.OPQRST_SEVERITY:
             nums = re.findall(r"\b([1-9]|10)\b", text)
-            if nums:
-                self.cm.update_collected_data(conv_id, "severity", int(nums[0]))
+            if nums: self.cm.update_collected_data(conv_id, "severity", int(nums[0]))
+            else: self.cm.update_collected_data(conv_id, "severity_text", text)
+        elif stage == IntakeStage.OPQRST_TIMING:
+            self.cm.update_collected_data(conv_id, "timing", text)
+
         elif stage == IntakeStage.ASSOCIATED:
-            existing = cd.get("symptoms_text", "")
-            self.cm.update_collected_data(conv_id, "symptoms_text", f"{existing}. Associated: {text}")
-        elif stage == IntakeStage.TIMELINE:
-            self.cm.update_collected_data(conv_id, "duration", text)
-            existing = cd.get("symptoms_text", "")
-            self.cm.update_collected_data(conv_id, "symptoms_text", f"{existing}. Duration: {text}")
+            self.cm.update_collected_data(conv_id, "associated_symptoms", text)
         elif stage == IntakeStage.HISTORY:
             self.cm.update_collected_data(conv_id, "medical_history_text", text)
         elif stage == IntakeStage.MEDICATIONS:
             self.cm.update_collected_data(conv_id, "medications_text", text)
+        elif stage == IntakeStage.ALLERGIES:
+            self.cm.update_collected_data(conv_id, "allergies", text)
+        elif stage == IntakeStage.LIFESTYLE:
+            self.cm.update_collected_data(conv_id, "lifestyle_raw", text)
+        elif stage == IntakeStage.FAMILY_HISTORY:
+            self.cm.update_collected_data(conv_id, "family_history", text)
+        elif stage == IntakeStage.RED_FLAGS:
+            self.cm.update_collected_data(conv_id, "red_flags_raw", text)
+            if self._is_emergency(text):
+                self.cm.update_collected_data(conv_id, "red_flag_detected", True)
 
     # ── Stage advancement ─────────────────────────────────────────────
 
@@ -339,12 +404,22 @@ class IntakeEngine:
 
     def _fallback_question(self, stage: IntakeStage) -> str:
         fallbacks = {
+            IntakeStage.GREETING: "Hello! How can I help you today?",
+            IntakeStage.BASIC_INFO: "To provide the best advice, could you please tell me your age, gender, and general location?",
             IntakeStage.CHIEF_COMPLAINT: "What brings you in today? Please describe your main concern.",
-            IntakeStage.SYMPTOM_DETAIL: "Where exactly do you feel this and how would you rate the severity on a scale of 1 to 10?",
-            IntakeStage.ASSOCIATED: "Are there any other symptoms you're experiencing alongside this — such as fever, nausea, or fatigue?",
-            IntakeStage.TIMELINE: "How long have you been experiencing this, and when did it first start?",
-            IntakeStage.HISTORY: "Do you have any existing medical conditions, past surgeries, or known allergies?",
+            IntakeStage.OPQRST_ONSET: "When did this symptom first start?",
+            IntakeStage.OPQRST_PROVOCATION: "What makes the symptom better or worse?",
+            IntakeStage.OPQRST_QUALITY: "What does the symptom feel like? (e.g., sharp, dull ache, burning)",
+            IntakeStage.OPQRST_REGION: "Where exactly is the symptom located, and does it spread anywhere?",
+            IntakeStage.OPQRST_SEVERITY: "On a scale of 1 to 10, how severe is the symptom?",
+            IntakeStage.OPQRST_TIMING: "Is the symptom constant, or does it come and go?",
+            IntakeStage.ASSOCIATED: "Are there any other symptoms you're experiencing alongside this?",
+            IntakeStage.HISTORY: "Do you have any existing medical conditions or past surgeries?",
             IntakeStage.MEDICATIONS: "Are you currently taking any medications or supplements?",
+            IntakeStage.ALLERGIES: "Do you have any known allergies?",
+            IntakeStage.LIFESTYLE: "Could you tell me about your lifestyle habits (e.g., smoking, alcohol)?",
+            IntakeStage.FAMILY_HISTORY: "Is there any relevant medical history in your family?",
+            IntakeStage.RED_FLAGS: "Have you noticed any severe symptoms like sudden weakness or difficulty breathing?",
             IntakeStage.CONFIRMING: "I've gathered all the information I need. Shall I proceed with the diagnosis?",
         }
         return fallbacks.get(stage, "Could you tell me more?")
@@ -352,9 +427,16 @@ class IntakeEngine:
     # ── Imaging detection ─────────────────────────────────────────────
 
     def _detect_imaging(self, conv_id: str, state):
-        symptoms = (state.collected_data or {}).get("symptoms_text", "").lower()
+        cd = state.collected_data or {}
+        # Scan chief complaint, region, and associated symptoms for imaging keywords
+        search_text = " ".join([
+            str(cd.get("chief_complaint", "")),
+            str(cd.get("region", "")),
+            str(cd.get("associated_symptoms", ""))
+        ]).lower()
+        
         for keyword, scan_type in IMAGING_MAP.items():
-            if keyword in symptoms:
+            if keyword in search_text:
                 self.cm.set_imaging_needed(conv_id, True, [scan_type])
                 break
 
@@ -362,10 +444,17 @@ class IntakeEngine:
 
     def _is_emergency(self, text: str) -> bool:
         keywords = [
-            "can't breathe", "cannot breathe", "chest crushing",
-            "severe chest pain", "heart attack", "stroke",
-            "unconscious", "unresponsive", "suicide", "overdose",
-            "stabbed", "gunshot", "bleeding heavily",
+            # Cardiovascular
+            "crushing chest pain", "chest pain with arm radiation", "severe shortness of breath",
+            "heart attack", "can't breathe", "cannot breathe",
+            # Neurological
+            "sudden weakness", "facial drooping", "speech difficulty", "severe sudden headache",
+            "stroke", "unconscious", "unresponsive", "loss of consciousness",
+            # Infection / Trauma
+            "high fever with stiff neck", "confusion with fever",
+            "severe bleeding", "stabbed", "gunshot",
+            # Psychiatric
+            "suicide", "overdose",
         ]
         t = text.lower()
         return any(k in t for k in keywords)

@@ -12,12 +12,21 @@ load_dotenv()
 
 class IntakeStage(str, Enum):
     GREETING           = "greeting"
+    BASIC_INFO         = "basic_info"
     CHIEF_COMPLAINT    = "chief_complaint"
-    SYMPTOM_DETAIL     = "symptom_detail"
+    OPQRST_ONSET       = "onset"
+    OPQRST_PROVOCATION = "provocation"
+    OPQRST_QUALITY     = "quality"
+    OPQRST_REGION      = "region"
+    OPQRST_SEVERITY    = "severity"
+    OPQRST_TIMING      = "timing"
     ASSOCIATED         = "associated_symptoms"
-    TIMELINE           = "timeline"
     HISTORY            = "history"
     MEDICATIONS        = "medications"
+    ALLERGIES          = "allergies"
+    LIFESTYLE          = "lifestyle"
+    FAMILY_HISTORY     = "family_history"
+    RED_FLAGS          = "red_flags"
     REPORTS            = "reports"
     IMAGING            = "imaging"
     CONFIRMING         = "confirming"
@@ -187,6 +196,7 @@ class ConversationManager:
         state = self.get_conversation(conversation_id)
         if not state:
             raise ValueError(f"Conversation {conversation_id} not found")
+        
         message = Message(
             message_id=f"msg_{uuid.uuid4().hex[:8]}",
             role=role,
@@ -196,7 +206,23 @@ class ConversationManager:
         )
         state.messages.append(message)
         state.updated_at = datetime.now().isoformat()
+        
+        # 1. Update conversation metadata (stage, collected_data, etc.)
         self._persist_to_db(state)
+        
+        # 2. Persist message specifically to chat_messages table
+        if self.supabase:
+            try:
+                self.supabase.table("chat_messages").insert({
+                    "conversation_id": conversation_id,
+                    "user_id": state.patient_id,
+                    "role": role.value,
+                    "content": content,
+                    "created_at": message.timestamp
+                }).execute()
+            except Exception as e:
+                print(f"[ConversationManager] Failed to persist message: {e}")
+                
         return message
 
     def update_stage(self, conversation_id: str, stage: IntakeStage):
@@ -262,40 +288,106 @@ class ConversationManager:
         state = self.get_conversation(conversation_id)
         if not state:
             return False
-        return bool(state.collected_data.get("symptoms_text"))
+        return bool(state.collected_data.get("chief_complaint")) and bool(state.collected_data.get("onset"))
 
     def build_analysis_payload(self, conversation_id: str) -> dict:
         """
         Build the unified payload sent to all 3 parallel models.
-        Merges: user typed data + parsed document fields + image findings.
+        Follows the standardized clinical structure: patient_info, opqrst, histories.
         """
         state = self.get_conversation(conversation_id)
         if not state:
             return {}
 
-        payload = dict(state.collected_data)  # base: everything the user typed
+        cd = state.collected_data or {}
+        
+        # ── 1. Patient Info ──
+        patient_info = {
+            "age": cd.get("age"),
+            "gender": cd.get("gender"),
+            "location": cd.get("location") or "India"
+        }
 
-        # Merge parsed report fields (don't overwrite user values)
+        # ── 2. OPQRST ──
+        opqrst = {
+            "onset": cd.get("onset"),
+            "provocation": cd.get("provocation"),
+            "quality": cd.get("quality"),
+            "region": cd.get("region"),
+            "severity": cd.get("severity"),
+            "timing": cd.get("timing")
+        }
+
+        # ── 3. Histories (Lists) ──
+        def to_list(val):
+            if not val: return []
+            if isinstance(val, list): return val
+            return [s.strip() for s in str(val).split(",") if s.strip()]
+
+        associated_symptoms = to_list(cd.get("associated_symptoms"))
+        medical_history     = to_list(cd.get("medical_history_text"))
+        medications        = to_list(cd.get("medications_text"))
+        allergies          = to_list(cd.get("allergies"))
+        family_history     = to_list(cd.get("family_history"))
+
+        # ── 4. Lifestyle ──
+        lifestyle = cd.get("lifestyle", {
+            "smoking": cd.get("smoking"),
+            "alcohol": cd.get("alcohol"),
+            "exercise": cd.get("exercise"),
+            "sleep": cd.get("sleep")
+        })
+
+        # ── 5. Red Flags ──
+        red_flag_detected = cd.get("red_flag_detected", False)
+
+        # ── 6. Merge Parsed Files ──
+        # If reports were uploaded, merge their extracted fields where missing
         for report in state.reports_uploaded:
-            for k, v in report.get("parsed_fields", {}).items():
-                if v and not payload.get(k):
-                    payload[k] = v
+            pf = report.get("parsed_fields", {})
+            if pf.get("age") and not patient_info["age"]: patient_info["age"] = pf["age"]
+            if pf.get("gender") and not patient_info["gender"]: patient_info["gender"] = pf["gender"]
+            
+            # Add conditions found in reports to medical history
+            if pf.get("conditions"):
+                for c in to_list(pf["conditions"]):
+                    if c not in medical_history: medical_history.append(c)
 
-        # Append image findings to lab_text
-        image_summaries = []
+        # ── 7. Image Findings (Append to associated) ──
         for img in state.images_uploaded:
             findings = img.get("findings", {})
-            if findings:
-                scan_type = img.get("scan_type", "medical image")
-                summary = findings.get("findings") or findings.get("description", "")
-                if summary:
-                    image_summaries.append(f"[{scan_type.upper()} Analysis] {summary}")
+            summary = findings.get("findings") or findings.get("description", "")
+            if summary:
+                associated_symptoms.append(f"Image ({img.get('scan_type','scan')}): {summary}")
 
-        if image_summaries:
-            existing_lab = payload.get("lab_text", "")
-            payload["lab_text"] = (existing_lab + "\n" + "\n".join(image_summaries)).strip()
+        # ── 8. Derived legacy fields for backward compatibility ──
+        # (Used by SemanticCache, Preprocessor, and simpler LLM agents)
+        symptoms_str = f"Chief Complaint: {cd.get('chief_complaint', 'Unknown')}. "
+        if opqrst['onset']: symptoms_str += f"Started {opqrst['onset']}. "
+        if opqrst['quality']: symptoms_str += f"Quality: {opqrst['quality']}. "
+        if opqrst['region']: symptoms_str += f"Region: {opqrst['region']}. "
+        if opqrst['severity']: symptoms_str += f"Severity: {opqrst['severity']}/10. "
+        if opqrst['provocation']: symptoms_str += f"Factors: {opqrst['provocation']}. "
+        if opqrst['timing']: symptoms_str += f"Timing: {opqrst['timing']}. "
 
-        payload["patient_id"] = state.patient_id or conversation_id
+        payload = {
+            "patient_info": patient_info,
+            "chief_complaint": cd.get("chief_complaint", "Unknown"),
+            "opqrst": opqrst,
+            "associated_symptoms": associated_symptoms,
+            "medical_history": medical_history,
+            "medications": medications,
+            "allergies": allergies,
+            "lifestyle": lifestyle,
+            "family_history": family_history,
+            "red_flag_detected": red_flag_detected,
+            "patient_id": state.patient_id or conversation_id,
+            # Legacy compatibility fields:
+            "symptoms_text": symptoms_str.strip(),
+            "medical_history_text": ", ".join(medical_history),
+            "medications_text": ", ".join(medications)
+        }
+
         return payload
 
     def get_missing_critical_data(self, conversation_id: str) -> List[str]:
@@ -304,10 +396,10 @@ class ConversationManager:
             return []
         missing = []
         data = state.collected_data
-        if not data.get("symptoms_text"):
-            missing.append("symptoms")
+        if not data.get("chief_complaint"):
+            missing.append("main symptom (chief complaint)")
         if not data.get("age"):
             missing.append("age")
-        if not data.get("symptom_duration"):
-            missing.append("how long you've had these symptoms")
+        if not data.get("onset"):
+            missing.append("when it started (onset)")
         return missing
