@@ -89,10 +89,10 @@ export default function Sidebar({ user, currentConvId, refreshTrigger, onNewChat
             className={`relative flex flex-col h-full bg-[#171717] border-r border-[#2f2f2f] transition-all duration-300 z-20 ${collapsed ? 'w-16' : 'w-[260px]'}`}
             style={{ minWidth: collapsed ? 64 : 260 }}
         >
-            {/* Collapse button */}
+            {/* Collapse button (Desktop only) */}
             <button
                 onClick={() => setCollapsed(c => !c)}
-                className="absolute -right-3 top-6 w-6 h-6 bg-[#2f2f2f] border border-[#424242] rounded-full flex items-center justify-center shadow-sm z-30 hover:bg-[#3a3a3a] transition-colors text-[#b4b4b4]"
+                className="hidden md:flex absolute -right-3 top-6 w-6 h-6 bg-[#2f2f2f] border border-[#424242] rounded-full items-center justify-center shadow-sm z-30 hover:bg-[#3a3a3a] transition-colors text-[#b4b4b4]"
             >
                 {collapsed ? <ChevronRight size={12} /> : <ChevronLeft size={12} />}
             </button>

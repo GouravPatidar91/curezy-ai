@@ -197,6 +197,31 @@ class IntakeEngine:
         # ── Save data from this message ──
         self._store_stage_data(conversation_id, current_stage, text, state)
 
+        # ── GREETING stage: first user message IS the chief complaint ──
+        # Use Groq to extract ALL clinical data present in the message (onset, severity,
+        # associated symptoms, timing, quality, region, etc.) and skip already-answered stages.
+        if current_stage == IntakeStage.GREETING:
+            # 1. Store the full text as chief_complaint
+            self.cm.update_collected_data(conversation_id, "chief_complaint", text)
+
+            # 2. Smart extraction — parse as many OPQRST fields as Groq can infer
+            extracted = self._extract_opqrst_from_text(text)
+            for field, value in extracted.items():
+                if value and str(value).strip().lower() not in ("null", "none", "unknown", ""):
+                    self.cm.update_collected_data(conversation_id, field, value)
+
+            # 3. Advance to first unanswered stage (skip anything already extracted)
+            state = self.cm.get_conversation(conversation_id)
+            next_unanswered = self._find_next_unanswered_stage(
+                start_after=IntakeStage.CHIEF_COMPLAINT,
+                collected_data=state.collected_data or {}
+            )
+            self.cm.update_stage(conversation_id, next_unanswered)
+            state = self.cm.get_conversation(conversation_id)
+            response = self._groq_stage_question(state, next_unanswered)
+            self.cm.add_message(conversation_id, MessageRole.ASSISTANT, response)
+            return self._reply(response, next_unanswered.value, False)
+
         # ── Handle CONFIRMING stage specially ──
         if current_stage == IntakeStage.CONFIRMING:
             if YES_PATTERNS.search(text):
@@ -285,9 +310,9 @@ class IntakeEngine:
 
     def _next_stage(self, current: IntakeStage, text: str, state) -> IntakeStage:
         """
-        Advance to the next stage if the user gave a substantive reply.
-        A reply is substantive if it has > 2 words OR any letters at all.
-        We do NOT gate on keywords — any answer moves things forward.
+        Advance to the next UNANSWERED stage.
+        A reply is substantive if it has > 0 words.
+        Stages whose data is already in collected_data are skipped.
         """
         if len(text.split()) < 1:
             return current
@@ -296,19 +321,122 @@ class IntakeEngine:
         if idx < 0 or idx >= len(STAGE_ORDER) - 1:
             return current
 
-        next_s = STAGE_ORDER[idx + 1]
+        cd = state.collected_data or {}
 
-        # Skip ANALYZING and RESULTS — those are triggered differently
-        if next_s in (IntakeStage.ANALYZING, IntakeStage.RESULTS):
-            return current
+        # Walk forward from the next stage, skip any that are already answered
+        for next_s in STAGE_ORDER[idx + 1:]:
+            # Skip REPORTS stage automatically in conversation flow (it's for file uploads)
+            if next_s == IntakeStage.REPORTS:
+                continue
+            # Never auto-advance into ANALYZING / RESULTS (triggered separately)
+            if next_s in (IntakeStage.ANALYZING, IntakeStage.RESULTS):
+                return current
+            # Skip pre-answered stages
+            if self._stage_already_answered(next_s, cd):
+                continue
+            return next_s
 
-        # Skip back to current for GREETING (should never receive user msg here)
-        if current == IntakeStage.GREETING:
-            return IntakeStage.CHIEF_COMPLAINT
+        return current
 
-        return next_s
+    # ── Stage-answered check ──────────────────────────────────────────
+
+    # Maps each OPQRST stage to the collected_data field that represents it
+    STAGE_DATA_FIELD = {
+        IntakeStage.BASIC_INFO:          "patient_info_raw",
+        IntakeStage.CHIEF_COMPLAINT:     "chief_complaint",
+        IntakeStage.OPQRST_ONSET:        "onset",
+        IntakeStage.OPQRST_PROVOCATION:  "provocation",
+        IntakeStage.OPQRST_QUALITY:      "quality",
+        IntakeStage.OPQRST_REGION:       "region",
+        IntakeStage.OPQRST_SEVERITY:     "severity",
+        IntakeStage.OPQRST_TIMING:       "timing",
+        IntakeStage.ASSOCIATED:          "associated_symptoms",
+        IntakeStage.HISTORY:             "medical_history_text",
+        IntakeStage.MEDICATIONS:         "medications_text",
+        IntakeStage.ALLERGIES:           "allergies",
+        IntakeStage.LIFESTYLE:           "lifestyle_raw",
+        IntakeStage.FAMILY_HISTORY:      "family_history",
+        IntakeStage.RED_FLAGS:           "red_flags_raw",
+    }
+
+    def _stage_already_answered(self, stage: IntakeStage, collected_data: dict) -> bool:
+        """Return True if the collected_data already contains a meaningful answer for this stage."""
+        field = self.STAGE_DATA_FIELD.get(stage)
+        if not field:
+            return False
+        val = collected_data.get(field)
+        if val is None:
+            return False
+        # Treat "none", "no", "n/a" as answered (user explicitly said there is nothing)
+        s = str(val).strip().lower()
+        return bool(s) and s not in ("unknown", "")
+
+    def _find_next_unanswered_stage(
+        self, start_after: IntakeStage, collected_data: dict
+    ) -> IntakeStage:
+        """
+        Starting after `start_after` in the STAGE_ORDER, return the first
+        stage that has not yet been answered.
+        Falls back to CONFIRMING if everything is answered.
+        """
+        try:
+            idx = STAGE_ORDER.index(start_after)
+        except ValueError:
+            idx = 0
+
+        for stage in STAGE_ORDER[idx + 1:]:
+            if stage in (IntakeStage.ANALYZING, IntakeStage.RESULTS, IntakeStage.CONFIRMING):
+                return IntakeStage.CONFIRMING
+            if stage == IntakeStage.REPORTS:
+                continue
+            if not self._stage_already_answered(stage, collected_data):
+                return stage
+
+        return IntakeStage.CONFIRMING
 
     # ── Groq calls ────────────────────────────────────────────────────
+
+    def _extract_opqrst_from_text(self, text: str) -> dict:
+        """
+        Uses Groq to intelligently extract OPQRST fields from the user's first message.
+        Returns a dict with extracted fields. Any absent fields should be 'None'.
+        """
+        if not self.groq:
+            return {}
+
+        system = (
+            "You are a clinical data extractor. Your job is to extract OPQRST details from a patient's chief complaint.\n"
+            "Return ONLY valid JSON with no markdown formatting, no code blocks, and no other text.\n"
+            "If a detail is not mentioned, its value must be null.\n\n"
+            "JSON SCHEMA:\n"
+            "{\n"
+            '  "onset": "string or null (e.g. 2 days ago, suddenly)",\n'
+            '  "associated_symptoms": "string or null (e.g. fever, nausea)",\n'
+            '  "severity": "number or null (1-10 scale)",\n'
+            '  "quality": "string or null (e.g. sharp, burning)",\n'
+            '  "timing": "string or null (e.g. constant, comes and goes)",\n'
+            '  "region": "string or null (where it hurts)",\n'
+            '  "provocation": "string or null (what makes it better/worse)"\n'
+            "}"
+        )
+
+        try:
+            completion = self.groq.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=[
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": f"Extract from this patient message:\n\n{text}"},
+                ],
+                temperature=0.1,
+                max_tokens=200,
+                response_format={"type": "json_object"}
+            )
+            content = completion.choices[0].message.content.strip()
+            import json
+            return json.loads(content)
+        except Exception as e:
+            print(f"[IntakeEngine] Smart extraction failed: {e}")
+            return {}
 
     def _groq_stage_question(self, state, next_stage: IntakeStage) -> str:
         """

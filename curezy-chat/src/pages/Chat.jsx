@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Send, Mic, MicOff, Phone, Plus, X, FileText, Loader2, Check, Image, Paperclip, ChevronDown, ArrowUp, Brain, Search, Activity, Heart, ShieldCheck } from 'lucide-react'
+import { Send, Mic, MicOff, Phone, Plus, X, FileText, Loader2, Check, Image, Paperclip, ChevronDown, ArrowUp, Brain, Search, Activity, Heart, ShieldCheck, Menu, User } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../config/supabase'
 import { startChat, sendMessage, uploadReport, resumeChat } from '../api/client'
@@ -142,21 +142,12 @@ function AnalysisBubble() {
 
 // ── Empty state ───────────────────────────────────────────────────────
 
-function EmptyState({ onNewChat }) {
-    return (
-        <div className="flex flex-col items-center justify-center h-full text-center pb-24 select-none">
-            <img src="/curezy logo.png" alt="Curezy" className="w-16 h-16 rounded-2xl object-contain mb-6 bg-[#2f2f2f] p-2" />
-            <h3 className="text-xl font-semibold text-white mb-2 tracking-tight">Curezy Medical Council</h3>
-            <p className="text-[#777] text-sm max-w-sm leading-relaxed mb-8">
-                3 specialized AI doctors analyze your symptoms in parallel and debate to reach the most accurate diagnosis.
-            </p>
-            <button onClick={onNewChat}
-                className="flex items-center gap-2 bg-white text-[#212121] px-6 py-2.5 rounded-xl text-sm font-semibold transition-all hover:bg-[#e5e5e5]">
-                <Plus size={16} /> Start a Consultation
-            </button>
-        </div>
-    )
-}
+const IDLE_SUGGESTIONS = [
+    { label: 'Check Symptom', text: 'I have a fever', Icon: Activity, color: 'text-blue-400' },
+    { label: 'Review Report', text: 'I want to upload a lab report', Icon: FileText, color: 'text-orange-400' },
+    { label: 'Get Advice', text: 'I am feeling very tired', Icon: Heart, color: 'text-pink-400' },
+    { label: 'More', text: 'I have other symptoms', Icon: Search, color: 'text-[#888]' },
+]
 
 
 // ── Model selector options ────────────────────────────────────────────
@@ -217,7 +208,7 @@ function ModelSelector({ selectedModel, onSelect }) {
 
 // ── Attachment dropdown ───────────────────────────────────────────────
 
-function AttachDropdown({ backendConvId, onUploadDone }) {
+function AttachDropdown({ backendConvId, onUploadDone, children, triggerClassName }) {
     const [open, setOpen] = useState(false)
     const [mode, setMode] = useState(null)
     const [file, setFile] = useState(null)
@@ -257,32 +248,25 @@ function AttachDropdown({ backendConvId, onUploadDone }) {
         <div ref={ref} className="relative">
             <button
                 onClick={() => { setOpen(o => !o); setMode(null); setFile(null); setDone(null) }}
-                className="p-1.5 rounded-lg text-[#666] hover:text-[#aaa] transition-colors"
+                className={triggerClassName || "p-1.5 rounded-lg text-[#666] hover:text-[#aaa] transition-colors"}
                 title="Attach file"
             >
-                <Paperclip size={18} />
+                {children || <Paperclip size={18} />}
             </button>
             {open && !mode && (
-                <div className="absolute bottom-full left-0 mb-2 w-56 bg-[#2a2a2a] border border-[#3a3a3a] rounded-xl shadow-2xl overflow-hidden z-50">
-                    <button onClick={() => handleChoose('doc')} className="w-full flex items-center gap-3 px-4 py-3 hover:bg-[#333] transition-colors text-left">
-                        <FileText size={16} className="text-[#999]" />
-                        <div>
-                            <p className="text-[13px] text-[#ddd]">Upload Document</p>
-                            <p className="text-[11px] text-[#666]">PDF, TXT, DOCX</p>
-                        </div>
+                <div className="absolute bottom-full left-0 mb-3 w-48 bg-[#2f2f2f] border border-[#3a3a3a] rounded-[20px] shadow-2xl z-50 py-2 flex flex-col">
+                    <button onClick={() => handleChoose('img')} className="flex items-center gap-3 px-4 py-2.5 hover:bg-[#3a3a3a] transition-colors text-left text-[#ececec]">
+                        <Image size={18} className="text-[#ececec]" />
+                        <span className="text-[15px] font-medium">Add photos</span>
                     </button>
-                    <div className="border-t border-[#333]" />
-                    <button onClick={() => handleChoose('img')} className="w-full flex items-center gap-3 px-4 py-3 hover:bg-[#333] transition-colors text-left">
-                        <Image size={16} className="text-[#999]" />
-                        <div>
-                            <p className="text-[13px] text-[#ddd]">Upload Image</p>
-                            <p className="text-[11px] text-[#666]">X-Ray, CT, MRI</p>
-                        </div>
+                    <button onClick={() => handleChoose('doc')} className="flex items-center gap-3 px-4 py-2.5 hover:bg-[#3a3a3a] transition-colors text-left text-[#ececec]">
+                        <Paperclip size={18} className="text-[#ececec]" />
+                        <span className="text-[15px] font-medium">Add files</span>
                     </button>
                 </div>
             )}
             {open && mode && (
-                <div className="absolute bottom-full left-0 mb-2 w-64 bg-[#2a2a2a] border border-[#3a3a3a] rounded-xl shadow-2xl overflow-hidden z-50 p-3">
+                <div className="absolute bottom-full left-0 mb-3 w-64 bg-[#2f2f2f] border border-[#3a3a3a] rounded-[20px] shadow-2xl z-50 p-3">
                     <input ref={inputRef} type="file" accept={accept} className="hidden"
                         onChange={e => { if (e.target.files[0]) setFile(e.target.files[0]) }} />
                     {done ? (
@@ -362,6 +346,55 @@ async function dbTouchConversation(userId, convId) {
         .eq('conversation_id', convId).eq('user_id', userId)
 }
 
+/**
+ * Fetch the analysis_result stored directly in the conversations table.
+ * This is the reliable fallback when the backend in-memory session is gone
+ * (e.g. after a server restart or RunPod cold-start).
+ */
+async function dbLoadAnalysisResult(convId) {
+    if (!convId) return null
+    const { data, error } = await supabase
+        .from('conversations')
+        .select('analysis_result, stage')
+        .eq('conversation_id', convId)
+        .single()
+    if (error) { console.warn('[DB] loadAnalysisResult:', error.message); return null }
+    return data?.analysis_result || null
+}
+
+/**
+ * Filter out greeting-only sessions so the idle canvas shows instead of a stale greeting.
+ * A session is "greeting-only" if it has NO user messages whatsoever.
+ * Returns the original array if real user messages exist, otherwise [].
+ */
+function filterGreetingOnly(msgs) {
+    if (!msgs || !msgs.length) return []
+    const hasUserMsg = msgs.some(m => m.role === 'user')
+    if (!hasUserMsg) {
+        console.log('[Chat] Session has no user messages — treating as idle (skipping greeting)')
+        return []
+    }
+    return msgs
+}
+
+// ── DoctorReferral dismiss persistence (localStorage) ────────────────────
+// Keyed per-conversation so dismissing on one chat never affects another.
+
+function isReferralDismissed(convId) {
+    if (!convId) return false
+    return localStorage.getItem(`curezy_ref_dismissed_${convId}`) === '1'
+}
+
+function dismissReferral(convId) {
+    if (!convId) return
+    localStorage.setItem(`curezy_ref_dismissed_${convId}`, '1')
+}
+
+function clearReferralDismiss(convId) {
+    if (!convId) return
+    localStorage.removeItem(`curezy_ref_dismissed_${convId}`)
+}
+
 // ── Normalize Analysis Output ─────────────────────────────────────────
 
 function normalizeAnalysis(data) {
@@ -374,10 +407,37 @@ function normalizeAnalysis(data) {
     return null;
 }
 
+/**
+ * Build a professional consultation title from analysis results.
+ * Uses top 1-2 diagnosed conditions to create a concise clinical label.
+ * Examples:
+ *   "Dengue Fever — Health Assessment"
+ *   "Viral Fever & Typhoid — Health Assessment"
+ *   "Chest Pain — Health Assessment"
+ */
+function generateConsultationTitle(normAnalysis) {
+    try {
+        const conditions = normAnalysis?.top_3_conditions || normAnalysis?.conditions || []
+        if (!conditions.length) return null
+
+        // Take top 1-2 conditions by probability
+        const sorted = [...conditions].sort((a, b) => (b.probability ?? 0) - (a.probability ?? 0))
+        const top = sorted.slice(0, 2).map(c => c.condition).filter(Boolean)
+        if (!top.length) return null
+
+        const conditionStr = top.join(' & ')
+        return `${conditionStr} — Health Assessment`
+    } catch {
+        return null
+    }
+}
+
+
 // ── Main Chat component ───────────────────────────────────────────────
 
 export default function Chat() {
     const { user } = useAuth()
+    const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
     const [messages, setMessages] = useState([])
     const [input, setInput] = useState('')
     const [loading, setLoading] = useState(false)
@@ -438,29 +498,23 @@ export default function Chat() {
         try {
             const res = await startChat()
             const newBackendId = res.data?.conversation_id
-            const greeting = res.data?.message || "Hello! I'm Curezy AI. What brings you in today?"
             const firstStage = res.data?.stage || 'chief_complaint'
 
-            if (!newBackendId) {
-                console.warn('[Chat] Backend returned no ID, using fallback')
-                throw new Error('No conversion ID')
-            }
+            if (!newBackendId) throw new Error('No conversation ID from backend')
 
             backendConvIdRef.current = newBackendId
             setConvId(newBackendId)
             setStage(firstStage)
-            setMessages([{ role: 'assistant', content: greeting, timestamp: new Date().toISOString() }])
-
+            // ✅ No greeting pushed — idle canvas shows immediately
             await dbUpsertConversation(user?.id, newBackendId, 'New Consultation')
-            await dbInsertMessage(user?.id, newBackendId, 'assistant', greeting)
             setRefreshSidebar(n => n + 1)
         } catch (err) {
             console.error('[Chat] handleNewChat failed:', err)
+            // Fallback: generate a local temp ID and show idle canvas
             const fallbackId = `temp_${Date.now()}`
             setConvId(fallbackId)
             backendConvIdRef.current = fallbackId
-            const fallbackGreeting = "Hello! I'm Curezy AI Medical Council. What brings you in today?"
-            setMessages([{ role: 'assistant', content: fallbackGreeting, timestamp: new Date().toISOString() }])
+            // Still no greeting — let the idle canvas handle it
         } finally {
             setLoading(false)
         }
@@ -486,11 +540,13 @@ export default function Chat() {
                     try {
                         const res = await resumeChat(convId)
                         if (res.data?.success) {
-                            const fetchedMessages = res.data.messages || []
+                            let fetchedMessages = res.data.messages || []
+                            fetchedMessages = filterGreetingOnly(fetchedMessages)
                             if (fetchedMessages.length > 0) {
                                 setMessages(fetchedMessages)
                             } else {
-                                const localMsgs = await dbLoadMessages(convId)
+                                let localMsgs = await dbLoadMessages(convId)
+                                localMsgs = filterGreetingOnly(localMsgs)
                                 setMessages(localMsgs)
                             }
                             setStage(res.data.stage || 'chief_complaint')
@@ -501,21 +557,51 @@ export default function Chat() {
                                     confidence: ar.confidence,
                                     dataGaps: ar.data_gaps
                                 })
-                                setShowReferral(true)
+                                if (!isReferralDismissed(convId)) setShowReferral(true)
                             }
                         } else {
                             // Fallback to basic message loading if resumeChat fails
-                            const msgs = await dbLoadMessages(convId)
+                            let msgs = await dbLoadMessages(convId)
+                            msgs = filterGreetingOnly(msgs)
                             setMessages(msgs)
                             const hasResults = msgs.some(m => m.role === 'assistant' && (m.content.includes('diagnosis') || m.content.includes('condition')))
-                            setStage(hasResults ? 'results' : msgs.length > 0 ? 'chief_complaint' : 'greeting')
+                            const restoredStage = hasResults ? 'results' : msgs.length > 0 ? 'chief_complaint' : 'greeting'
+                            setStage(restoredStage)
+                            // Even if resumeChat failed, load the saved analysis result directly from DB
+                            if (restoredStage === 'results' || hasResults) {
+                                const ar = await dbLoadAnalysisResult(convId)
+                                if (ar) {
+                                    console.log('[Chat] Restored analysis_result from DB (resume no-result path)')
+                                    setAnalysisResult({
+                                        analysis: normalizeAnalysis(ar.analysis || ar),
+                                        confidence: ar.confidence,
+                                        dataGaps: ar.data_gaps
+                                    })
+                                    if (!isReferralDismissed(convId)) setShowReferral(true)
+                                }
+                            }
                         }
                     } catch (e) {
                         console.warn('[Chat] resumeChat failed, fallback to local restore:', e)
-                        const msgs = await dbLoadMessages(convId)
+                        let msgs = await dbLoadMessages(convId)
+                        msgs = filterGreetingOnly(msgs)
                         setMessages(msgs)
                         const hasResults = msgs.some(m => m.role === 'assistant' && (m.content.includes('diagnosis') || m.content.includes('condition')))
-                        setStage(hasResults ? 'results' : msgs.length > 0 ? 'chief_complaint' : 'greeting')
+                        const restoredStage = hasResults ? 'results' : msgs.length > 0 ? 'chief_complaint' : 'greeting'
+                        setStage(restoredStage)
+                        // Fetch analysis result directly from Supabase — backend memory may have been lost
+                        if (restoredStage === 'results' || hasResults) {
+                            const ar = await dbLoadAnalysisResult(convId)
+                            if (ar) {
+                                console.log('[Chat] Restored analysis_result from DB (resumeChat catch path)')
+                                setAnalysisResult({
+                                    analysis: normalizeAnalysis(ar.analysis || ar),
+                                    confidence: ar.confidence,
+                                    dataGaps: ar.data_gaps
+                                })
+                                if (!isReferralDismissed(convId)) setShowReferral(true)
+                            }
+                        }
                     }
 
                     backendConvIdRef.current = convId
@@ -548,7 +634,8 @@ export default function Chat() {
                 if (fetchedMessages.length > 0) {
                     setMessages(fetchedMessages)
                 } else {
-                    const localMsgs = await dbLoadMessages(selectedId)
+                    let localMsgs = await dbLoadMessages(selectedId)
+                    localMsgs = filterGreetingOnly(localMsgs)
                     setMessages(localMsgs)
                 }
                 setStage(res.data.stage || 'chief_complaint')
@@ -559,20 +646,50 @@ export default function Chat() {
                         confidence: ar.confidence,
                         dataGaps: ar.data_gaps
                     })
-                    setShowReferral(true)
+                    if (!isReferralDismissed(selectedId)) setShowReferral(true)
                 }
             } else {
-                const msgs = await dbLoadMessages(selectedId)
+                let msgs = await dbLoadMessages(selectedId)
+                msgs = filterGreetingOnly(msgs)
                 setMessages(msgs)
                 const hasResults = msgs.some(m => m.role === 'assistant' && (m.content.includes('diagnosis') || m.content.includes('condition')))
-                setStage(hasResults ? 'results' : msgs.length > 0 ? 'chief_complaint' : 'greeting')
+                const restoredStage = hasResults ? 'results' : msgs.length > 0 ? 'chief_complaint' : 'greeting'
+                setStage(restoredStage)
+                // Fetch saved analysis result directly from DB when backend can't provide it
+                if (restoredStage === 'results' || hasResults) {
+                    const ar = await dbLoadAnalysisResult(selectedId)
+                    if (ar) {
+                        console.log('[Chat] Restored analysis_result from DB (selectConv no-result path)')
+                        setAnalysisResult({
+                            analysis: normalizeAnalysis(ar.analysis || ar),
+                            confidence: ar.confidence,
+                            dataGaps: ar.data_gaps
+                        })
+                        if (!isReferralDismissed(selectedId)) setShowReferral(true)
+                    }
+                }
             }
         } catch (e) {
             console.warn('[Chat] handleSelectConv resumeChat failed:', e)
-            const msgs = await dbLoadMessages(selectedId)
+            let msgs = await dbLoadMessages(selectedId)
+            msgs = filterGreetingOnly(msgs)
             setMessages(msgs)
             const hasResults = msgs.some(m => m.role === 'assistant' && (m.content.includes('diagnosis') || m.content.includes('condition')))
-            setStage(hasResults ? 'results' : msgs.length > 0 ? 'chief_complaint' : 'greeting')
+            const restoredStage = hasResults ? 'results' : msgs.length > 0 ? 'chief_complaint' : 'greeting'
+            setStage(restoredStage)
+            // Fetch analysis result directly from Supabase — backend memory may be gone
+            if (restoredStage === 'results' || hasResults) {
+                const ar = await dbLoadAnalysisResult(selectedId)
+                if (ar) {
+                    console.log('[Chat] Restored analysis_result from DB (selectConv catch path)')
+                    setAnalysisResult({
+                        analysis: normalizeAnalysis(ar.analysis || ar),
+                        confidence: ar.confidence,
+                        dataGaps: ar.data_gaps
+                    })
+                    if (!isReferralDismissed(selectedId)) setShowReferral(true)
+                }
+            }
         }
 
         const { data: conv } = await supabase.from('conversations').select('title').eq('conversation_id', selectedId).single()
@@ -583,7 +700,33 @@ export default function Chat() {
 
     const handleSend = useCallback(async (overrideText) => {
         const text = (overrideText || input).trim()
-        if (!text || loading || !convId) return
+        if (!text || loading) return
+
+        // If no active conversation (idle state), boot a new backend session first
+        let activeConvId = convId
+        if (!activeConvId) {
+            setLoading(true)
+            try {
+                const res = await startChat()
+                const newId = res.data?.conversation_id
+                const greeting = res.data?.message
+                const firstStage = res.data?.stage || 'chief_complaint'
+                if (!newId) throw new Error('No conversation ID from backend')
+                activeConvId = newId
+                backendConvIdRef.current = newId
+                setConvId(newId)
+                setStage(firstStage)
+                // Don't push the greeting — user already has their message typed
+                await dbUpsertConversation(user?.id, newId, text.length > 48 ? text.slice(0, 48) + '...' : text)
+                setConvTitle(text.length > 48 ? text.slice(0, 48) + '...' : text)
+                setRefreshSidebar(n => n + 1)
+            } catch (e) {
+                console.error('[Chat] Auto-start on idle send failed:', e)
+                setLoading(false)
+                return
+            }
+        }
+
         setInput('')
 
         const userMsg = { role: 'user', content: text, timestamp: new Date().toISOString() }
@@ -595,13 +738,14 @@ export default function Chat() {
             startAnalysisSequence()
         }
 
-        await dbInsertMessage(user?.id, convId, 'user', text)
+        await dbInsertMessage(user?.id, activeConvId, 'user', text)
 
         const userMsgCount = messages.filter(m => m.role === 'user').length
-        if (userMsgCount === 0) {
+        if (userMsgCount === 0 && convId) {
+            // Only update title if this wasn't an idle-start (idle-start already set title above)
             const title = text.length > 48 ? text.slice(0, 48) + '...' : text
             setConvTitle(title)
-            await dbUpsertConversation(user?.id, convId, title)
+            await dbUpsertConversation(user?.id, activeConvId, title)
             setRefreshSidebar(n => n + 1)
         }
 
@@ -654,26 +798,40 @@ export default function Chat() {
 
                 if (normAnalysis) {
                     setAnalysisResult({ analysis: normAnalysis, confidence: res.data.confidence, dataGaps: res.data.data_gaps })
+
+                    // Auto-rename sidebar to professional clinical title based on top diagnosis
+                    const clinicalTitle = generateConsultationTitle(normAnalysis)
+                    if (clinicalTitle) {
+                        setConvTitle(clinicalTitle)
+                        await dbUpsertConversation(user?.id, activeConvId, clinicalTitle)
+                        setRefreshSidebar(n => n + 1)
+                    }
                     
                     const aiMsg = { role: 'assistant', content: reply, timestamp: new Date().toISOString() }
                     setMessages(prev => [...prev, aiMsg])
-                    await dbInsertMessage(user?.id, convId, 'assistant', reply)
+                    await dbInsertMessage(user?.id, activeConvId, 'assistant', reply)
                     
                     clearInterval(analysisTimerRef.current)
                     setAnalysisStep('done')
-                    setTimeout(() => { setShowingAnalysis(false); setStage('results'); setShowReferral(true) }, 3000)
+                    setTimeout(() => {
+                        // Clear any previous dismiss flag — this is a brand-new analysis result
+                        clearReferralDismiss(activeConvId)
+                        setShowingAnalysis(false)
+                        setStage('results')
+                        setShowReferral(true)
+                    }, 3000)
                 } else {
                     const aiMsg = { role: 'assistant', content: reply, timestamp: new Date().toISOString() }
                     setMessages(prev => [...prev, aiMsg])
-                    await dbInsertMessage(user?.id, convId, 'assistant', reply)
+                    await dbInsertMessage(user?.id, activeConvId, 'assistant', reply)
                 }
             } else {
                 const aiMsg = { role: 'assistant', content: reply, timestamp: new Date().toISOString() }
                 setMessages(prev => [...prev, aiMsg])
-                await dbInsertMessage(user?.id, convId, 'assistant', reply)
+                await dbInsertMessage(user?.id, activeConvId, 'assistant', reply)
             }
 
-            await dbTouchConversation(user?.id, convId)
+            await dbTouchConversation(user?.id, activeConvId)
         } catch (err) {
             console.error('[Chat] response handling error:', err)
             clearInterval(analysisTimerRef.current)
@@ -730,19 +888,50 @@ export default function Chat() {
         dbInsertMessage(user?.id, convId, 'assistant', summary)
     }, [user?.id, convId])
 
-    // Simplified isIdle logic: Only idle if no conversation is selected AND no messages
-    const isIdle = !convId && messages.length === 0 && !loading && !convLoading
+    // Idle = no messages yet (fresh chat or just started a new session)
+    // convId may already be set (backend session booted) but no messages have been exchanged
+    const isIdle = messages.length === 0 && !convLoading
     const chips = STAGE_CHIP_OPTIONS[stage] || []
 
     return (
-        <div className="flex h-screen bg-[#212121] overflow-hidden relative">
-            <Sidebar user={user} currentConvId={convId} refreshTrigger={refreshSidebar}
-                onNewChat={handleNewChat} onSelectConv={handleSelectConv} />
+        <div className="flex h-screen bg-[#171717] md:bg-[#212121] overflow-hidden relative text-[#ececec]">
+            {/* Mobile Sidebar Overlay */}
+            {mobileSidebarOpen && (
+                <div className="md:hidden fixed inset-0 z-50 flex">
+                    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setMobileSidebarOpen(false)} />
+                    <div className="relative w-[260px] h-full shadow-2xl">
+                        <Sidebar user={user} currentConvId={convId} refreshTrigger={refreshSidebar} 
+                            onNewChat={() => { handleNewChat(); setMobileSidebarOpen(false) }} 
+                            onSelectConv={(id) => { handleSelectConv(id); setMobileSidebarOpen(false) }} />
+                    </div>
+                </div>
+            )}
+            
+            {/* Desktop Sidebar */}
+            <div className="hidden md:block h-full shrink-0">
+                <Sidebar user={user} currentConvId={convId} refreshTrigger={refreshSidebar}
+                    onNewChat={handleNewChat} onSelectConv={handleSelectConv} />
+            </div>
 
             <div className="flex-1 flex flex-col min-w-0 relative z-10">
 
-                {/* Minimal header */}
-                <div className="bg-[#212121] border-b border-[#2a2a2a] px-5 py-2 flex items-center justify-between z-20">
+                {/* Mobile Header (ChatGPT Style) */}
+                <div className="md:hidden bg-[#171717] px-4 py-2.5 flex items-center justify-between z-20">
+                    <button onClick={() => setMobileSidebarOpen(true)} className="flex items-center justify-center w-10 h-10 rounded-full text-[#ECECEC] bg-[#2F2F2F] hover:bg-[#3A3A3A] transition-colors">
+                        <Menu size={20} strokeWidth={2} />
+                    </button>
+                    
+                    <button className="flex items-center gap-1.5 px-4 py-2 bg-transparent hover:bg-[#2F2F2F] rounded-xl transition-colors font-medium text-[16px] text-white">
+                        Curezy AI <ChevronDown size={14} className="text-[#888] ml-0.5" />
+                    </button>
+                    
+                    <button onClick={handleNewChat} className="flex items-center justify-center w-10 h-10 rounded-full text-[#ECECEC] bg-[#2F2F2F] hover:bg-[#3A3A3A] transition-colors">
+                        <Plus size={20} strokeWidth={2} />
+                    </button>
+                </div>
+
+                {/* Desktop Header */}
+                <div className="hidden md:flex bg-[#212121] border-b border-[#2a2a2a] px-5 py-2 items-center justify-between z-20">
                     <StageBadge stage={stage} />
                     <div className="flex items-center gap-3">
                         {stage === 'results' && (
@@ -764,7 +953,69 @@ export default function Chat() {
                         </div>
                     )}
 
-                    {isIdle && !convLoading && <EmptyState onNewChat={handleNewChat} />}
+                    {isIdle && !convLoading && (
+                        /* ── ChatGPT-style idle canvas ── */
+                        <div className="flex flex-col items-center justify-center h-full select-none pb-4 md:pb-8">
+                            {/* Brand heading */}
+                            <div className="mb-8 md:mb-10 text-center">
+                                <h2 className="text-[28px] md:text-[32px] font-semibold text-white tracking-tight leading-snug">
+                                    What can I help with?
+                                </h2>
+                            </div>
+
+                            {/* Centered input bar (Desktop only, mobile sticks to bottom) */}
+                            <div className="hidden md:block w-full max-w-2xl px-4">
+                                <div className="bg-[#2f2f2f] rounded-2xl border border-[#3a3a3a] focus-within:border-[#555] transition-colors shadow-xl">
+                                    <div className="flex items-end gap-2 px-3 pt-3 pb-2">
+                                        <AttachDropdown backendConvId={backendConvIdRef.current} onUploadDone={handleUploadDone} />
+                                        <textarea
+                                            value={input}
+                                            onChange={e => setInput(e.target.value)}
+                                            onKeyDown={handleKeyDown}
+                                            placeholder="Ask Curezy AI"
+                                            rows={1}
+                                            disabled={loading}
+                                            className="flex-1 bg-transparent text-[14px] resize-none focus:outline-none text-[#ececec] placeholder-[#888] max-h-36 disabled:opacity-50 leading-relaxed self-center"
+                                            style={{ minHeight: '24px' }}
+                                            autoFocus
+                                        />
+                                    </div>
+                                    <div className="flex items-center justify-between px-3 pb-2.5">
+                                        <ModelSelector selectedModel={selectedModel} onSelect={setSelectedModel} />
+                                        <div className="flex items-center gap-1">
+                                            <button onClick={toggleRecording} title={isRecording ? 'Stop' : 'Voice input'}
+                                                className={`p-1.5 rounded-lg transition-colors ${isRecording ? 'text-red-400 animate-pulse' : 'text-[#666] hover:text-[#aaa]'}`}>
+                                                {isRecording ? <MicOff size={18} /> : <Mic size={18} />}
+                                            </button>
+                                            <button onClick={() => handleSend()} disabled={loading || !input.trim()}
+                                                className="bg-white text-[#212121] p-1.5 rounded-lg transition-all disabled:opacity-20 disabled:cursor-not-allowed hover:bg-[#e5e5e5]">
+                                                <ArrowUp size={16} strokeWidth={2.5} />
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Symptom suggestion chips */}
+                            <div className="grid grid-cols-2 md:flex md:flex-wrap justify-center gap-2 mt-8 md:mt-6 w-full max-w-[600px] mx-auto px-4 md:px-0">
+                                {IDLE_SUGGESTIONS.map(s => (
+                                    <button
+                                        key={s.label}
+                                        onClick={() => handleSend(s.text)}
+                                        disabled={loading}
+                                        className="flex items-center justify-center md:justify-start gap-2.5 w-full md:w-auto px-1 sm:px-4 py-3 md:py-2.5 border border-[#3a3a3a] rounded-full bg-transparent text-[#ececec] hover:bg-[#2f2f2f] transition-all disabled:opacity-40"
+                                    >
+                                        <s.Icon size={18} className={s.color} />
+                                        <span className="font-medium text-[13px] md:text-[13px] truncate">{s.label}</span>
+                                    </button>
+                                ))}
+                            </div>
+
+                            <p className="text-center text-[11px] text-[#555] mt-6 hidden md:block">
+                                Curezy AI is not a substitute for professional medical advice
+                            </p>
+                        </div>
+                    )}
 
                     {!convLoading && messages
                         .map((msg, i) => (
@@ -783,8 +1034,11 @@ export default function Chat() {
                     {showingAnalysis && !convLoading && <AnalysisBubble currentStep={analysisStep} />}
 
                     {analysisResult && stage === 'results' && !convLoading && messages.length > 0 &&
+                        /* Only render the standalone fallback card when the trigger message is NOT in history.
+                           When it IS present, MessageBubble renders the AnalysisCard inline — no duplicate needed.
+                           dbLoadAnalysisResult() now ensures analysisResult is always populated on restore,
+                           so MessageBubble will handle the inline render for all normal restore paths. */
                         !messages.some(m => m.role === 'assistant' && m.content?.includes('## 🩺 Curezy AI Health Assessment')) && (
-                            /* Fallback only if the trigger message is missing from history */
                             <>
                                 <AnalysisCard
                                     {...analysisResult}
@@ -806,8 +1060,8 @@ export default function Chat() {
                     <div ref={bottomRef} />
                 </div>
 
-                {/* Input area */}
-                <div className="px-4 pb-4 pt-2 z-20">
+                {/* Input area — shown at bottom always on mobile, and only when active on desktop */}
+                <div className={`${isIdle ? 'md:hidden' : ''} px-4 pb-4 pt-2 z-20`}>
                     <div className="max-w-3xl mx-auto">
 
                         {/* Quick chips */}
@@ -824,20 +1078,39 @@ export default function Chat() {
 
                         {/* Input container */}
                         {!showingAnalysis && (
-                            <div className="bg-[#2f2f2f] border border-[#3a3a3a] rounded-2xl focus-within:border-[#555] transition-colors">
-                                {/* Textarea row */}
-                                <div className="flex items-end gap-2 px-3 pt-3 pb-2">
-                                    <AttachDropdown backendConvId={backendConvIdRef.current} onUploadDone={handleUploadDone} />
+                            <div className="bg-[#2f2f2f] md:rounded-2xl rounded-[24px] border border-[#3a3a3a] focus-within:border-[#555] transition-colors md:shadow-sm">
+                                {/* Top row (or only row on mobile) */}
+                                <div className="flex items-center gap-2 px-2 py-1 md:items-end md:px-3 md:pt-3 md:pb-2">
+                                    <div className="md:hidden">
+                                        <AttachDropdown backendConvId={backendConvIdRef.current} onUploadDone={handleUploadDone} triggerClassName="p-1.5 text-[#888] bg-[#3a3a3a] hover:bg-[#444] rounded-full transition-colors flex items-center justify-center">
+                                            <Plus size={18} />
+                                        </AttachDropdown>
+                                    </div>
+                                    <div className="hidden md:block">
+                                        <AttachDropdown backendConvId={backendConvIdRef.current} onUploadDone={handleUploadDone} />
+                                    </div>
                                     <textarea
                                         value={input} onChange={e => setInput(e.target.value)} onKeyDown={handleKeyDown}
-                                        placeholder={stage === 'results' ? 'Ask a follow-up question...' : 'Describe your symptoms...'}
+                                        placeholder={stage === 'results' ? 'Ask a follow-up question...' : 'Message Curezy AI'}
                                         rows={1} disabled={loading || convLoading}
-                                        className="flex-1 bg-transparent text-[14px] resize-none focus:outline-none text-[#ececec] placeholder-[#666] max-h-36 disabled:opacity-50 leading-relaxed"
-                                        style={{ minHeight: '24px' }}
+                                        className="flex-1 bg-transparent text-[15px] md:text-[14px] resize-none focus:outline-none text-[#ececec] placeholder-[#888] max-h-36 disabled:opacity-50 leading-relaxed self-center py-2 md:py-0"
+                                        style={{ minHeight: '28px' }}
                                     />
+                                    <div className="flex md:hidden items-center pr-1 gap-1">
+                                        {input.trim() ? (
+                                            <button onClick={() => handleSend()} disabled={loading || convLoading}
+                                                className="bg-white text-black p-1.5 rounded-full transition-all hover:bg-[#e5e5e5]">
+                                                <ArrowUp size={16} strokeWidth={2.5} />
+                                            </button>
+                                        ) : (
+                                            <button onClick={toggleRecording} className={`p-1.5 rounded-full transition-colors ${isRecording ? 'text-red-400 animate-pulse bg-red-400/10' : 'text-[#888] hover:text-white'}`}>
+                                                {isRecording ? <MicOff size={18} /> : <Mic size={18} />}
+                                            </button>
+                                        )}
+                                    </div>
                                 </div>
-                                {/* Bottom bar: model selector + actions */}
-                                <div className="flex items-center justify-between px-3 pb-2.5">
+                                {/* Bottom bar: model selector + actions (Desktop only) */}
+                                <div className="hidden md:flex items-center justify-between px-3 pb-2.5">
                                     <ModelSelector selectedModel={selectedModel} onSelect={setSelectedModel} />
                                     <div className="flex items-center gap-1">
                                         <button onClick={toggleRecording} title={isRecording ? 'Stop' : 'Voice input'}
@@ -852,8 +1125,7 @@ export default function Chat() {
                                 </div>
                             </div>
                         )}
-
-                        <p className="text-center text-[11px] text-[#555] mt-2.5">
+                        <p className="text-center text-[11px] text-[#555] mt-2.5 hidden md:block">
                             Curezy AI is not a substitute for professional medical advice
                         </p>
                     </div>
@@ -861,7 +1133,14 @@ export default function Chat() {
             </div>
 
             {showReferral && (
-                <DoctorReferral analysis={analysisResult?.analysis} onClose={() => setShowReferral(false)} />
+                <DoctorReferral
+                    analysis={analysisResult?.analysis}
+                    onClose={() => {
+                        // Persist dismiss so popup never reappears for this conversation
+                        dismissReferral(convId)
+                        setShowReferral(false)
+                    }}
+                />
             )}
         </div>
     )

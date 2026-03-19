@@ -494,19 +494,21 @@ def start_conversation(
     request: Request,
     patient_id: Optional[str] = None
 ):
-    """Create a new conversation and return the greeting + Stage 1 metadata."""
+    """Create a new conversation and return the conversation_id + Stage 1 metadata.
+    
+    The greeting message is returned for reference but NOT persisted to the session.
+    This ensures that resuming an empty conversation never replays a greeting —
+    the frontend idle canvas handles the fresh-chat UX instead.
+    """
     state = conversation_manager.create_conversation(patient_id)
     greeting = intake_engine.get_greeting()
-    conversation_manager.add_message(
-        conversation_id=state.conversation_id,
-        role=MessageRole.ASSISTANT,
-        content=greeting
-    )
+    # ✅  Do NOT persist greeting — frontend idle canvas handles fresh-chat UX
+    # conversation_manager.add_message(state.conversation_id, MessageRole.ASSISTANT, greeting)
     stage_meta = intake_engine.get_stage_metadata(state.stage)
     return {
         "success": True,
         "conversation_id": state.conversation_id,
-        "message": greeting,
+        "message": greeting,   # returned for reference, not stored
         "stage": state.stage.value,
         "stage_metadata": stage_meta,
     }
