@@ -23,6 +23,7 @@ from chat.conversation_manager import ConversationManager, MessageRole, IntakeSt
 from chat.intake_engine import IntakeEngine
 from chat.document_parser import DocumentParser
 from agents.semantic_cache import SemanticCache
+from pharmacy.medicine_matcher import MedicineMatcher
 from finetune.pipeline import start_pipeline, get_job, list_jobs
 from finetune.deploy import OllamaDeploy
 from utils.email_service import EmailService
@@ -80,6 +81,7 @@ intake_engine        = IntakeEngine(conversation_manager)
 document_parser      = DocumentParser()
 xray_analyzer        = ChestXRayAnalyzer()
 semantic_cache       = SemanticCache()
+medicine_matcher     = MedicineMatcher()
 
 if os.path.isdir("static"):
     app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -304,6 +306,15 @@ async def analyze_patient(
             data_gaps = uncertainty_engine.generate_active_data_gaps(
                 patient_state_dict, clinical_output_dict
             )
+
+        # Step 4.5 — Match Medicines
+        treatment_goals = clinical_output_dict.get("treatment_goals", [])
+        if treatment_goals:
+            print(f"[Pharmacy] Finding medicines for goals: {treatment_goals}")
+            recommended_medicines = await medicine_matcher.match_goals_to_medicines(treatment_goals)
+            clinical_output_dict["recommended_medicines"] = recommended_medicines
+        else:
+            clinical_output_dict["recommended_medicines"] = []
 
         # Step 5 — Audit log
         log_result = audit_logger.log_prediction(

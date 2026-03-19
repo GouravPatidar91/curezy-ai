@@ -69,7 +69,7 @@ def _safe_list(val) -> list:
 
 CONDITION_JSON_SCHEMA = {
     "type": "object",
-    "required": ["doctor", "specialty", "conditions", "missing_data", "urgent_flags", "reasoning_summary"],
+    "required": ["doctor", "specialty", "conditions", "missing_data", "urgent_flags", "treatment_goals", "reasoning_summary"],
     "properties": {
         "doctor":     {"type": "string", "minLength": 3},
         "specialty":  {"type": "string", "minLength": 3},
@@ -91,6 +91,7 @@ CONDITION_JSON_SCHEMA = {
         },
         "missing_data":       {"type": "array", "items": {"type": "string"}},
         "urgent_flags":       {"type": "array", "items": {"type": "string"}},
+        "treatment_goals":    {"type": "array", "items": {"type": "string"}},
         "reasoning_summary":  {"type": "string", "minLength": 20}
     }
 }
@@ -189,6 +190,7 @@ class ClinicalCondition(BaseModel):
 class FinalClinicalOutput(BaseModel):
     patient_id:               str
     top_3_conditions:         List[ClinicalCondition]
+    treatment_goals:          List[str]
     consensus_confidence:     float
     agents_agreed:            bool
     council_votes:            Optional[dict]
@@ -283,7 +285,7 @@ Step 1: Fever + neck stiffness + headache = classic meningeal irritation triad. 
 Step 2: Sudden onset <24h = bacterial time course (viral is typically slower). Young adult with no prior illness.
 Step 3: Viral Meningitis remains a differential but bacterial probability is higher given the acuity.
 
-{"doctor":"Curezy AURIX","specialty":"General Medicine","conditions":[{"condition":"Bacterial Meningitis","probability":65,"confidence":78,"evidence":["Meningeal triad: fever 39.5°C + neck stiffness + photophobia","Sudden onset <24h consistent with bacterial time course","Young female without prior immunocompromise"],"reasoning":"Classic bacterial meningitis triad with acute onset. LP + IV antibiotics within 1 hour."},{"condition":"Viral Meningitis","probability":25,"confidence":55,"evidence":["Fever + headache + photophobia also seen in viral","Absence of petechial rash (slightly against bacterial)"],"reasoning":"Cannot exclude viral without CSF analysis. Typically less acute onset."},{"condition":"Subarachnoid Hemorrhage","probability":10,"confidence":40,"evidence":["Sudden severe headache warrants CT before LP","Photophobia can occur in SAH"],"reasoning":"Must rule out with CT before LP given presentation severity."}],"missing_data":["Lumbar puncture (CSF analysis)","CT head (before LP)","Blood cultures","Kernig/Brudzinski sign exam"],"urgent_flags":["EMERGENCY: LP + IV broad-spectrum antibiotics within 1 hour"],"reasoning_summary":"Acute meningeal triad in young adult. Bacterial meningitis is primary until LP excludes it. Treat immediately."}
+{"doctor":"Curezy AURIX","specialty":"General Medicine","conditions":[{"condition":"Bacterial Meningitis","probability":65,"confidence":78,"evidence":["Meningeal triad: fever 39.5°C + neck stiffness + photophobia","Sudden onset <24h consistent with bacterial time course","Young female without prior immunocompromise"],"reasoning":"Classic bacterial meningitis triad with acute onset. LP + IV antibiotics within 1 hour."},{"condition":"Viral Meningitis","probability":25,"confidence":55,"evidence":["Fever + headache + photophobia also seen in viral","Absence of petechial rash (slightly against bacterial)"],"reasoning":"Cannot exclude viral without CSF analysis. Typically less acute onset."},{"condition":"Subarachnoid Hemorrhage","probability":10,"confidence":40,"evidence":["Sudden severe headache warrants CT before LP","Photophobia can occur in SAH"],"reasoning":"Must rule out with CT before LP given presentation severity."}],"missing_data":["Lumbar puncture (CSF analysis)","CT head (before LP)","Blood cultures","Kernig/Brudzinski sign exam"],"urgent_flags":["EMERGENCY: LP + IV broad-spectrum antibiotics within 1 hour"],"treatment_goals":["Immediate IV broad-spectrum antibiotics","Manage intracranial pressure"],"reasoning_summary":"Acute meningeal triad in young adult. Bacterial meningitis is primary until LP excludes it. Treat immediately."}
 
 === WORKED EXAMPLE B ===
 Patient SOAP:
@@ -296,7 +298,7 @@ Step 1: Chest pain + left arm radiation + diaphoresis = ACS triad. Duration 30 m
 Step 2: Male 55yo hypertensive = high Framingham cardiac risk. Amlodipine use confirms pre-existing cardiac workup.
 Step 3: Must distinguish STEMI from NSTEMI — ECG critical. Aortic dissection must be excluded.
 
-{"doctor":"Curezy AURIS","specialty":"Differential Diagnosis","conditions":[{"condition":"Acute Myocardial Infarction","probability":72,"confidence":82,"evidence":["Left arm radiation — classic ACS referred pain pattern","Diaphoresis (sympathetic activation) — ACS marker","Duration >30 min beyond typical angina threshold","Male 55yo hypertensive — high Framingham cardiac risk"],"reasoning":"Classic STEMI/NSTEMI presentation. Immediate 12-lead ECG + cath lab activation."},{"condition":"Unstable Angina","probability":20,"confidence":60,"evidence":["Chest pain pattern consistent","No ST elevation data available to confirm MI"],"reasoning":"Cannot distinguish from NSTEMI without troponin. Treat as ACS protocol."},{"condition":"Aortic Dissection","probability":8,"confidence":40,"evidence":["Acute severe chest pain","Hypertension — dissection risk factor"],"reasoning":"Must exclude with bilateral BP measurement and CT-angiogram if dissection suspected."}],"missing_data":["12-lead ECG urgent","Troponin I/T serials","Bilateral BP measurement","CXR"],"urgent_flags":["EMERGENCY: Activate cath lab — PCI within 90 minutes"],"reasoning_summary":"High-probability ACS in hypertensive male. Immediate ECG, cath lab activation, aspirin 300mg."}
+{"doctor":"Curezy AURIS","specialty":"Differential Diagnosis","conditions":[{"condition":"Acute Myocardial Infarction","probability":72,"confidence":82,"evidence":["Left arm radiation — classic ACS referred pain pattern","Diaphoresis (sympathetic activation) — ACS marker","Duration >30 min beyond typical angina threshold","Male 55yo hypertensive — high Framingham cardiac risk"],"reasoning":"Classic STEMI/NSTEMI presentation. Immediate 12-lead ECG + cath lab activation."},{"condition":"Unstable Angina","probability":20,"confidence":60,"evidence":["Chest pain pattern consistent","No ST elevation data available to confirm MI"],"reasoning":"Cannot distinguish from NSTEMI without troponin. Treat as ACS protocol."},{"condition":"Aortic Dissection","probability":8,"confidence":40,"evidence":["Acute severe chest pain","Hypertension — dissection risk factor"],"reasoning":"Must exclude with bilateral BP measurement and CT-angiogram if dissection suspected."}],"missing_data":["12-lead ECG urgent","Troponin I/T serials","Bilateral BP measurement","CXR"],"urgent_flags":["EMERGENCY: Activate cath lab — PCI within 90 minutes"],"treatment_goals":["Reperfusion","Manage pain","Lower blood pressure"],"reasoning_summary":"High-probability ACS in hypertensive male. Immediate ECG, cath lab activation, aspirin 300mg."}
 """
 
     def diagnosis_prompt(self, soap: dict, doctor: dict, raw_payload: Optional[dict] = None) -> str:
@@ -323,6 +325,7 @@ CRITICAL RULES — Follow these exactly:
 5. Evidence items must cite SPECIFIC findings from the OPQRST data (Onset, Provocation, etc.).
 6. Do NOT copy placeholders or generic terms — write real clinical language.
 7. Strictly respect the structured patient data provided below.
+8. Under 'treatment_goals', output an array of strings representing the desired pharmacological or procedural goals to match against external medicine databases (e.g. ["Broad-spectrum antibiotics", "Fever reduction", "Pain management"]).
 
 {self._FEW_SHOT}
 
@@ -691,7 +694,7 @@ class ClinicalReasoner:
 
         elapsed = round(time.time()-t0, 1)
         print(f"[Council] ❌ {doctor['name']} exhausted retries ({elapsed}s)")
-        return {"doctor":doctor["name"],"specialty":doctor["specialty"],"conditions":[],"missing_data":[],"urgent_flags":[],"reasoning_summary":"All attempts failed"}
+        return {"doctor":doctor["name"],"specialty":doctor["specialty"],"conditions":[],"missing_data":[],"urgent_flags":[],"treatment_goals":[],"reasoning_summary":"All attempts failed"}
 
     async def _refine_evidence_async(self, top_condition: str, soap: dict, doctor_model: str) -> List[str]:
         """Phase 2.4: Secondary LLM call to generate specific clinical evidence."""
@@ -767,9 +770,11 @@ class ClinicalReasoner:
         avg_conf = sum(c.confidence for c in final)/len(final) if final else 0.0
         return FinalClinicalOutput(patient_id=pid,top_3_conditions=final,consensus_confidence=round(avg_conf,1),
             agents_agreed=True,council_votes={doctor["name"]:final[0].condition if final else "No output"},
-            disagreement_details=None,missing_data_suggestions=[_to_str(x) for x in _safe_list(output.get("missing_data",[]))],
+            disagreement_details=None,
+            missing_data_suggestions=[_to_str(x) for x in _safe_list(output.get("missing_data",[]))],
             safety_flags=[_to_str(x) for x in _safe_list(output.get("urgent_flags",[]))],
-            doctor_review_required=avg_conf<60,
+            treatment_goals=[_to_str(x) for x in _safe_list(output.get("treatment_goals",[]))],
+            doctor_review_required=(avg_conf < 60),
             reasoning_summary=_to_str(output.get("reasoning_summary",f"Analysis by {doctor['name']}")),
             execution_time_seconds=round(time.time()-start,1))
 
@@ -920,7 +925,7 @@ class ClinicalReasoner:
                     doc = COUNCIL[idx]
                     if isinstance(r, Exception):
                         print(f"[Council] ❌ {doc['name']} failed: {r}")
-                        outputs.append({"doctor":doc["name"],"specialty":doc["specialty"],"conditions":[],"missing_data":[],"urgent_flags":[],"reasoning_summary":str(r)})
+                        outputs.append({"doctor":doc["name"],"specialty":doc["specialty"],"conditions":[],"missing_data":[],"urgent_flags":[],"treatment_goals":[],"reasoning_summary":str(r)})
                     else:
                         outputs.append(r)
                 return outputs

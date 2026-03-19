@@ -101,7 +101,7 @@ Patient data:
 {soap_note}
 
 Revise your diagnosis to address the reviewer's concerns. Output corrected JSON only:
-{{"doctor":"{doctor['name']}","specialty":"{doctor['specialty']}","conditions":[{{"condition":"<real_name>","probability":<integer>,"confidence":<integer>,"evidence":["<specific_finding>"],"reasoning":"<rationale>"}}],"missing_data":[],"urgent_flags":[],"reasoning_summary":"<revised_2_sentence_summary>"}}"""
+{{"doctor":"{doctor['name']}","specialty":"{doctor['specialty']}","conditions":[{{"condition":"<real_name>","probability":<integer>,"confidence":<integer>,"evidence":["<specific_finding>"],"reasoning":"<rationale>"}}],"missing_data":[],"urgent_flags":[],"treatment_goals":["<goal>"],"reasoning_summary":"<revised_2_sentence_summary>"}}"""
 
 
 def get_must_check_conditions(symptoms: List[str]) -> List[str]:

@@ -161,7 +161,7 @@ const MODEL_OPTIONS = [
 
 // ── Model selector dropdown (now inside input area) ───────────────────
 
-function ModelSelector({ selectedModel, onSelect }) {
+function ModelSelector({ selectedModel, onSelect, customTrigger, dropdownClass }) {
     const [open, setOpen] = useState(false)
     const ref = useRef(null)
     const active = MODEL_OPTIONS.find(m => m.key === selectedModel) || MODEL_OPTIONS[0]
@@ -174,15 +174,17 @@ function ModelSelector({ selectedModel, onSelect }) {
 
     return (
         <div ref={ref} className="relative">
-            <button
-                onClick={() => setOpen(o => !o)}
-                className="flex items-center gap-1 text-[12px] text-[#777] hover:text-[#bbb] transition-colors rounded px-1 py-0.5"
-            >
-                {active.label}
-                <ChevronDown size={12} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
-            </button>
+            {customTrigger ? customTrigger(active, open, () => setOpen(o => !o)) : (
+                <button
+                    onClick={() => setOpen(o => !o)}
+                    className="flex items-center gap-1 text-[12px] text-[#777] hover:text-[#bbb] transition-colors rounded px-1 py-0.5"
+                >
+                    {active.label}
+                    <ChevronDown size={12} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
+                </button>
+            )}
             {open && (
-                <div className="absolute bottom-full left-0 mb-2 w-72 bg-[#2a2a2a] border border-[#3a3a3a] rounded-xl shadow-2xl overflow-hidden z-50">
+                <div className={dropdownClass || "absolute bottom-full left-0 mb-2 w-72 bg-[#2a2a2a] border border-[#3a3a3a] rounded-xl shadow-2xl overflow-hidden z-50"}>
                     <div className="px-3 py-2 border-b border-[#333]">
                         <p className="text-[11px] text-[#666] font-medium uppercase tracking-wide">Model</p>
                     </div>
@@ -921,9 +923,16 @@ export default function Chat() {
                         <Menu size={20} strokeWidth={2} />
                     </button>
                     
-                    <button className="flex items-center gap-1.5 px-4 py-2 bg-transparent hover:bg-[#2F2F2F] rounded-xl transition-colors font-medium text-[16px] text-white">
-                        Curezy AI <ChevronDown size={14} className="text-[#888] ml-0.5" />
-                    </button>
+                    <ModelSelector 
+                        selectedModel={selectedModel} 
+                        onSelect={setSelectedModel}
+                        dropdownClass="absolute top-full left-1/2 -translate-x-1/2 mt-3 w-[260px] bg-[#2f2f2f] border border-[#3a3a3a] rounded-[20px] shadow-2xl overflow-hidden z-[100]"
+                        customTrigger={(active, open, toggle) => (
+                            <button onClick={toggle} className="flex items-center gap-1.5 px-4 py-2 bg-[#2F2F2F] hover:bg-[#3A3A3A] rounded-2xl transition-colors font-medium text-[16px] text-[#ececec]">
+                                {active.key === 'council' ? 'Curezy AI' : active.label} <ChevronDown size={14} className={`text-[#888] ml-0.5 transition-transform ${open ? 'rotate-180' : ''}`} />
+                            </button>
+                        )}
+                    />
                     
                     <button onClick={handleNewChat} className="flex items-center justify-center w-10 h-10 rounded-full text-[#ECECEC] bg-[#2F2F2F] hover:bg-[#3A3A3A] transition-colors">
                         <Plus size={20} strokeWidth={2} />

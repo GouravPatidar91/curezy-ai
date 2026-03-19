@@ -27,6 +27,7 @@ STATIC_EXAMPLES: List[Dict] = [
         "reasoning_summary": "Acute meningeal triad in young adult — bacterial meningitis primary diagnosis until LP excludes it.",
         "specialty":  "neurology",
         "urgency":    "EMERGENCY",
+        "treatment_goal": "Immediate IV broad-spectrum antibiotics, reduce inflammation, manage intracranial pressure",
     },
     {
         "soap_note":  "S: chest pain radiating to left arm, sweating, nausea | Duration: 30 minutes | Onset: Acute\nO: Age 55, Male. Labs: none.\nC: PMH: hypertension. Meds: amlodipine.",
@@ -42,6 +43,7 @@ STATIC_EXAMPLES: List[Dict] = [
         "reasoning_summary": "High-probability ACS in hypertensive male. Immediate ECG, cath lab, aspirin 300mg.",
         "specialty":  "cardiology",
         "urgency":    "EMERGENCY",
+        "treatment_goal": "Reperfusion, prevent ischemia, manage pain, lower blood pressure",
     },
 ]
 
@@ -75,7 +77,7 @@ Step 1: Review chief complaint and onset type against differential candidates.
 Step 2: Match key findings to the most clinically supported diagnosis.
 Step 3: Assign probabilities based on specificity of findings.
 
-{{"doctor":"{doctor_name}","specialty":"{doctor_specialty}","conditions":[{{"condition":"{case['condition']}","probability":{case['probability']},"confidence":75,"evidence":[{evidence_str}],"reasoning":"{case['reasoning']}"}}],"missing_data":[],"urgent_flags":["{case.get('urgency','routine')}: {case.get('reasoning_summary','')}"],"reasoning_summary":"{case.get('reasoning_summary','')}"}}\n"""
+{{"doctor":"{doctor_name}","specialty":"{doctor_specialty}","conditions":[{{"condition":"{case['condition']}","probability":{case['probability']},"confidence":75,"evidence":[{evidence_str}],"reasoning":"{case['reasoning']}"}}],"missing_data":[],"urgent_flags":["{case.get('urgency','routine')}: {case.get('reasoning_summary','')}"],"treatment_goals":["{case.get('treatment_goal','Manage underlying condition')}"],"reasoning_summary":"{case.get('reasoning_summary','')}"}}\n"""
 
 
 async def get_dynamic_examples(patient_symptoms: List[str], doctor: Dict, n: int = 2) -> str:
@@ -117,6 +119,7 @@ async def get_dynamic_examples(patient_symptoms: List[str], doctor: Dict, n: int
                                 "reasoning_summary": case.get("reasoning_summary", ""),
                                 "specialty":        case.get("specialty", ""),
                                 "urgency":          case.get("urgency", ""),
+                                "treatment_goal":   "Manage symptoms based on top condition",
                             },
                             doctor["name"],
                             doctor["specialty"]
