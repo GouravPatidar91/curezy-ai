@@ -1,0 +1,12 @@
+venv/
+.venv/
+__pycache__/
+*.pyc
+.env
+.git/
+.models/
+.tmp/
+temp_uploads/
+medsam_install.log
+medsam_local_install.log
+*.xlsx

@@ -266,10 +266,41 @@ class LabReportParser:
 # OCR PROCESSOR
 # ─────────────────────────────────────────
 
+import google.generativeai as genai
+
 class OCRProcessor:
+    def __init__(self):
+        gemini_api_key = os.getenv("GEMINI_API_KEY")
+        self.gemini_available = False
+        if gemini_api_key:
+            try:
+                genai.configure(api_key=gemini_api_key)
+                self.vision_model = genai.GenerativeModel('gemini-1.5-flash')
+                self.gemini_available = True
+                print("[OCR] Gemini 1.5 Flash API configured successfully.")
+            except Exception as e:
+                print(f"[OCR] Failed to configure Gemini API: {e}")
+
+    def extract_with_gemini(self, image: Image.Image) -> str:
+        try:
+            prompt = "Extract all medical text, lab values, and doctor notes from this document exactly as written. Do not add conversational filler. Preserve tabular data as text."
+            response = self.vision_model.generate_content([prompt, image])
+            return response.text.strip()
+        except Exception as e:
+            print(f"[OCR] Gemini extraction failed: {e}")
+            return None
+
     def extract_text_from_image(self, image_path: str) -> str:
         try:
             img = Image.open(image_path)
+            
+            if self.gemini_available:
+                print("[OCR] Attempting extraction with Gemini 1.5 Flash...")
+                gemini_text = self.extract_with_gemini(img)
+                if gemini_text:
+                    return gemini_text
+            
+            print("[OCR] Falling back to Tesseract OCR...")
             text = pytesseract.image_to_string(img)
             return text.strip()
         except Exception as e:

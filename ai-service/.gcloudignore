@@ -1,0 +1,15 @@
+.gcloudignore
+.git
+.gitignore
+venv/
+.venv/
+__pycache__/
+*.pyc
+.env
+.models/
+.tmp/
+temp_uploads/
+medsam_install.log
+medsam_local_install.log
+*.xlsx
+node_modules/
