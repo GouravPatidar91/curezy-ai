@@ -5,10 +5,17 @@ from transformers import AutoTokenizer
 def quantize_model(model_path: str, quant_path: str):
     print(f"Quantizing {model_path} -> {quant_path}...")
     
-    model = AutoAWQForCausalLM.from_pretrained(
-        model_path, 
-        **{"low_cpu_mem_usage": True, "use_cache": False}
-    )
+    try:
+        model = AutoAWQForCausalLM.from_pretrained(
+            model_path, 
+            **{"low_cpu_mem_usage": True, "use_cache": False, "safetensors": True}
+        )
+    except OSError:
+        print(f"No safetensors found for {model_path}. Falling back to PyTorch .bin weights...")
+        model = AutoAWQForCausalLM.from_pretrained(
+            model_path, 
+            **{"low_cpu_mem_usage": True, "use_cache": False, "safetensors": False}
+        )
     tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
 
     quant_config = {
