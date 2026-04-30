@@ -351,7 +351,7 @@ async function dbTouchConversation(userId, convId) {
 /**
  * Fetch the analysis_result stored directly in the conversations table.
  * This is the reliable fallback when the backend in-memory session is gone
- * (e.g. after a server restart or RunPod cold-start).
+ * (e.g. after a Cloud Run cold-start or server restart).
  */
 async function dbLoadAnalysisResult(convId) {
     if (!convId) return null

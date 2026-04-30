@@ -6,7 +6,7 @@ const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000'
 // Standard API instance — 3-minute timeout for most calls
 const api = axios.create({ baseURL: API_URL, timeout: 180_000 })
 
-// Long-timeout instance — 8 minutes for council/RunPod analysis
+// Long-timeout instance — 8 minutes for council/GCP Ollama analysis
 const analysisApi = axios.create({ baseURL: API_URL, timeout: 480_000 })
 
 // Attach Supabase JWT to every request
@@ -48,7 +48,7 @@ export const uploadReport = (convId, file) => {
 export const getChatHistory = (convId) => api.get(`/chat/${convId}/history`)
 
 // ── Analysis
-export const analyzePatient = (data) => api.post('/analyze', data)
+export const analyzePatient = (data) => analysisApi.post('/analyze', data)  // uses 8-min timeout for council
 export const analyzeXray = (formData) => api.post('/analyze/xray', formData, { headers: { 'Content-Type': 'multipart/form-data' } })
 
 // ── API Keys
