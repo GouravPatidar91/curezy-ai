@@ -10,6 +10,14 @@ from pydantic import BaseModel
 import ollama
 from dotenv import load_dotenv
 
+load_dotenv()  # ensure .env is loaded before reading OLLAMA_HOST
+
+# ── GCP Ollama host — read once at import time ─────────────────────────────────
+# Set OLLAMA_HOST in .env to point at the GCP VM running Ollama.
+# Example: OLLAMA_HOST=http://136.119.122.149:11434
+# Falls back to localhost for local development.
+_OLLAMA_HOST: str = os.getenv("OLLAMA_HOST", "http://localhost:11434")
+
 # ── Knowledge & Support imports ──────────────────────────────────────────────
 from knowledge.symptom_map import format_rag_block, get_red_flags
 from knowledge.icd10_map import normalize_condition_name, normalize_conditions_list
@@ -30,6 +38,8 @@ from agents.confidence_auditor import (
 # ── Phase 2 — Feedback Infrastructure ────────────────────────────────────────
 from agents.quality_scorer import compute_q_score
 
+from agents.rag_retriever import RAGRetriever
+
 # ── Phase 3 — Dynamic Few-Shot ────────────────────────────────────────────────
 from agents.fewshot_curator import get_dynamic_examples, STATIC_EXAMPLES
 
@@ -41,7 +51,6 @@ from agents.counterfactual_reasoner import (
     build_counterfactual_prompt, parse_counterfactual_output
 )
 
-load_dotenv()
 
 
 # ─────────────────────────────────────────
@@ -207,11 +216,20 @@ class FinalClinicalOutput(BaseModel):
 # ─────────────────────────────────────────
 
 class CouncilLLMClient:
+    """Low-level LLM client that routes all inference to the configured Ollama host.
+
+    The target host is read from the ``OLLAMA_HOST`` environment variable at
+    module import time (see ``_OLLAMA_HOST`` above).  This guarantees that every
+    call — diagnosis, debate, moderator, critic, evidence refinement — hits the
+    GCP-deployed Ollama instance rather than localhost.
+    """
 
     async def query_async(self, prompt: str, model: str, num_predict: int = 2048,
                           use_json_schema: bool = False, temperature: float = 0.1) -> str:
+        """Send a single generation request to Ollama on the GCP host."""
         try:
-            client  = ollama.AsyncClient()
+            # CRITICAL: pass host= so requests go to GCP Ollama, NOT localhost.
+            client  = ollama.AsyncClient(host=_OLLAMA_HOST)
             options = {
                 "temperature":    temperature,
                 "num_predict":    num_predict,
@@ -226,10 +244,11 @@ class CouncilLLMClient:
                 kwargs["format"] = CONDITION_JSON_SCHEMA
             # else: plain text for CoT prompts (we parse JSON from the output)
 
+            print(f"[Council] → {model} @ {_OLLAMA_HOST}")
             response = await client.generate(**kwargs)
             return response.get("response", "{}")
         except Exception as exc:
-            print(f"[Council] Error querying {model}: {exc}")
+            print(f"[Council] Error querying {model} @ {_OLLAMA_HOST}: {exc}")
             return "{}"
 
     def parse_json(self, text: str) -> dict:
@@ -264,6 +283,11 @@ class CouncilLLMClient:
         except: pass
         print(f"[Council] JSON parse failed on: {text[:150]}")
         return {}
+
+_USE_VLLM = os.getenv("USE_VLLM", "false").lower() == "true"
+if _USE_VLLM:
+    from agents.vllm_client import VLLMCouncilClient
+    CouncilLLMClient = VLLMCouncilClient
 
 
 # ─────────────────────────────────────────
@@ -615,6 +639,7 @@ class ClinicalReasoner:
         self.detector  = HallucinationDetector()
         self.consensus = WeightedConsensusEngine()
         self.validator = OutputValidator()
+        self.rag       = RAGRetriever()
         print(f"[Council] Initialized ({len(COUNCIL)} members):")
         for d in COUNCIL: print(f"  {d['name']} — {d['model']}")
 
@@ -626,7 +651,7 @@ class ClinicalReasoner:
         print(f"[Council] {doctor['name']} analyzing...")
         t0 = time.time()
         prompt = self.prompts.diagnosis_prompt(soap, doctor, raw_payload=patient_state)
-        temperatures = [0.05, 0.2, 0.4]
+        temperatures = [0.1]
 
         for attempt in range(3):
             try:
@@ -694,7 +719,21 @@ class ClinicalReasoner:
 
         elapsed = round(time.time()-t0, 1)
         print(f"[Council] ❌ {doctor['name']} exhausted retries ({elapsed}s)")
-        return {"doctor":doctor["name"],"specialty":doctor["specialty"],"conditions":[],"missing_data":[],"urgent_flags":[],"treatment_goals":[],"reasoning_summary":"All attempts failed"}
+        return {
+            "doctor": doctor["name"],
+            "specialty": doctor["specialty"],
+            "conditions": [{
+                "condition": "Analysis Failed",
+                "probability": 1,
+                "confidence": 1,
+                "evidence": ["Model timeout or parsing failure"],
+                "reasoning": "The AI model failed to produce a valid clinical assessment."
+            }],
+            "missing_data": ["Model analysis failure"],
+            "urgent_flags": [],
+            "treatment_goals": [],
+            "reasoning_summary": "System error during inference."
+        }
 
     async def _refine_evidence_async(self, top_condition: str, soap: dict, doctor_model: str) -> List[str]:
         """Phase 2.4: Secondary LLM call to generate specific clinical evidence."""
@@ -744,7 +783,7 @@ class ClinicalReasoner:
 
     MODEL_KEY_MAP = {"medgemma":"Curezy AURIX", "openbiollm":"Curezy AURA", "mistral":"Curezy AURIS"}
 
-    def analyze_single(self, patient_state: dict, model_key: str) -> FinalClinicalOutput:
+    async def analyze_single(self, patient_state: dict, model_key: str) -> FinalClinicalOutput:
         pid   = patient_state.get("patient_id","unknown")
         start = time.time()
         soap  = convert_to_soap(patient_state)  # Phase 2.1
@@ -757,7 +796,7 @@ class ClinicalReasoner:
                 missing_data_suggestions=[],safety_flags=["INVALID MODEL"],doctor_review_required=True,
                 reasoning_summary=f"Model '{model_key}' not found.",execution_time_seconds=0)
 
-        output     = self._run_doctor(doctor, soap, patient_state)
+        output     = await self._run_doctor_async(doctor, soap, patient_state)
         conditions = normalize_conditions_list(output.get("conditions",[]))[:3]
         final      = [ClinicalCondition(
             condition=normalize_condition_name(_to_str(c.get("condition","Unknown"))),
@@ -898,8 +937,18 @@ class ClinicalReasoner:
             print(f"[Auditor] ⚠️ Failed: {e}")
         return {}
 
-    def analyze(self, patient_state: dict) -> FinalClinicalOutput:
+    async def analyze(self, patient_state: dict, progress_callback=None) -> FinalClinicalOutput:
         pid   = patient_state.get("patient_id","unknown")
+        start = time.time()
+
+        async def _emit(event: str, data: dict = None):
+            if progress_callback:
+                try:
+                    await progress_callback({"event": event, "data": data or {}})
+                except Exception as e:
+                    print(f"[WebSocket] Callback failed: {e}")
+
+        await _emit("analysis_started", {"patient_id": pid})
         start = time.time()
 
         # Phase 2.1: Convert to SOAP note
@@ -909,13 +958,34 @@ class ClinicalReasoner:
         # Phase 2.2: Run hard clinical rules BEFORE any LLM call
         forced_conditions, forced_flags = run_clinical_rules(patient_state)
 
+        # Phase 4: Enforce emergency lock-in for LLM context
+        if forced_conditions:
+            emer_names = ", ".join([c["condition"] for c in forced_conditions])
+            soap["soap_string"] = f"CRITICAL EMERGENCY LOCKED IN: {emer_names}\n\n" + soap["soap_string"]
+            soap["soap_string"] += f"\n\nNOTE TO COUNCIL: The primary diagnosis of {emer_names} is already confirmed by hard clinical rules. You must acknowledge this and focus your debate on secondary differentials, complications, or underlying causes."
+
+        # Phase 4: Scrub PHI before logging
+        import sys
+        import os
+        sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
+        from security.phi_scrubber import scrub_patient_state
+        safe_state = scrub_patient_state(patient_state)
+
         print(f"\n[Council] {'='*40}")
-        print(f"[Council] Patient: {pid} | Symptoms: {soap['symptoms'][:5]}")
+        print(f"[Council] Patient: {pid} | Symptoms: {safe_state.get('symptoms', [])[:5]}")
         print(f"[Council] {'='*40}")
+
+        # Phase 6: RAG Context Injection
+        if self.rag and self.rag.enabled:
+            rag_context = self.rag.retrieve_guidelines(patient_symptoms)
+            if rag_context:
+                print(f"[Council] 📚 Injected PubMed clinical guidelines")
+                soap["soap_string"] += f"\n\n{rag_context}\nCRITICAL INSTRUCTION: Use the guidelines above to inform your reasoning."
 
         try:
             # ── ROUND 1: Self-Consistency Parallel Diagnosis ──────────────────
             print(f"\n[Council] ROUND 1 — {len(COUNCIL)} models (self-consistency + grammar constraints)")
+            await _emit("round_started", {"round": 1, "name": "Initial Diagnosis", "models": len(COUNCIL)})
 
             async def run_round_1():
                 tasks   = [self._run_doctor_async(d, soap, patient_state) for d in COUNCIL]
@@ -930,9 +1000,10 @@ class ClinicalReasoner:
                         outputs.append(r)
                 return outputs
 
-            council_outputs = asyncio.run(run_round_1())
+            council_outputs = await run_round_1()
             valid_count = len([o for o in council_outputs if o.get("conditions")])
             print(f"[Council] Round 1: {valid_count}/{len(COUNCIL)} valid | {round(time.time()-start,1)}s")
+            await _emit("round_completed", {"round": 1, "valid": valid_count, "total": len(COUNCIL)})
 
             # ── Phase 2.4: Refine evidence for top conditions ─────────────────
             print(f"\n[Council] ROUND 1b — Evidence refinement")
@@ -948,7 +1019,7 @@ class ClinicalReasoner:
                         council_outputs[i]["conditions"][0]["evidence"] = refined[j]
                 return council_outputs
 
-            council_outputs = asyncio.run(run_evidence_refinement())
+            council_outputs = await run_evidence_refinement()
 
             if valid_count == 0:
                 # If all failed but we have forced conditions from rules, return those
@@ -968,12 +1039,14 @@ class ClinicalReasoner:
             # ── ROUND 1.5 (NEW): Think-Revise Metacognitive Critic (Phase 1.1) ─
             print(f"\n[Council] ROUND 1.5 — Think-Revise metacognitive critic")
             async def run_critic_revision(): return await self._run_critic_revision_async(council_outputs, soap)
-            council_outputs = asyncio.run(run_critic_revision())
+            council_outputs = await run_critic_revision()
 
             # ── ROUND 2: Hallucination Detection (ICD-10 normalized) ─────────
             print(f"\n[Council] ROUND 2 — Hallucination detection + ICD-10 normalization")
+            await _emit("round_started", {"round": 2, "name": "Hallucination Detection"})
             h_report = self.detector.detect(council_outputs)
             print(f"[Council] Agreement: {h_report['agreement_score']*100:.0f}% | Majority: {h_report.get('majority_condition','?')}")
+            await _emit("round_completed", {"round": 2, "agreement": h_report['agreement_score']})
 
             # ── ROUND 2.5 (NEW): Differential Pruning (Phase 1.3) ────────────
             print(f"\n[Council] ROUND 2.5 — Differential pruning (negative symptom elimination)")
@@ -988,26 +1061,30 @@ class ClinicalReasoner:
 
             # ── ROUND 3: Adversarial Debate ───────────────────────────────────
             print(f"\n[Council] ROUND 3 — Adversarial debate")
+            await _emit("round_started", {"round": 3, "name": "Council Debate"})
             async def run_round_3():
                 tasks   = [self._run_debate_async(d, soap, council_outputs) for d in COUNCIL]
                 results = await asyncio.gather(*tasks, return_exceptions=True)
                 return [r if not isinstance(r,Exception) else {"doctor":COUNCIL[i]["name"],"agrees_with_majority":True,"updated_conditions":[],"confidence_after_debate":60} for i,r in enumerate(results)]
-            debate_outputs = asyncio.run(run_round_3())
+            debate_outputs = await run_round_3()
+            await _emit("round_completed", {"round": 3, "name": "Council Debate"})
 
             # ── ROUND 3b: Moderator ───────────────────────────────────────────
             print(f"\n[Council] ROUND 3b — Moderator synthesis")
             symptom_str = ", ".join(patient_symptoms) or "unspecified"
             async def run_moderator(): return await self._run_moderator_async(debate_outputs, symptom_str)
-            moderator_output = asyncio.run(run_moderator())
+            moderator_output = await run_moderator()
 
             # ── ROUND 4: Calibrated Bayesian Consensus ────────────────────────
             print(f"\n[Council] ROUND 4 — Calibrated Bayesian consensus + clinical rules merge")
+            await _emit("round_started", {"round": 4, "name": "Consensus Engine"})
             total  = round(time.time()-start, 1)
             result = self.consensus.build(
                 council_outputs, debate_outputs, h_report, pid, total,
                 patient_symptoms=patient_symptoms, moderator_output=moderator_output,
                 forced_conditions=forced_conditions, forced_flags=forced_flags
             )
+            await _emit("round_completed", {"round": 4, "confidence": result.consensus_confidence})
 
             # ── ROUND 4.5 (NEW): Confidence Audit (Phase 1.4) ────────────────
             print(f"\n[Council] ROUND 4.5 — Confidence audit + sanity check")
@@ -1016,7 +1093,7 @@ class ClinicalReasoner:
                     [c.dict() for c in result.top_3_conditions],
                     result.consensus_confidence, soap
                 )
-            audit_result = asyncio.run(run_audit())
+            audit_result = await run_audit()
             if audit_result:
                 audit_parsed    = parse_audit_result(audit_result, result.missing_data_suggestions)
                 blended_conf    = confidence_adjustment(result.consensus_confidence, audit_parsed["independent_confidence"])
@@ -1044,7 +1121,7 @@ class ClinicalReasoner:
                     plan_task = self._run_diagnostic_plan_async(top_cond, top_prob, soap)
                     cf_task   = self._run_counterfactual_async(top_cond, top_prob, soap)
                     return await asyncio.gather(plan_task, cf_task, return_exceptions=True)
-                plan_result, cf_result = asyncio.run(run_plan_cf())
+                plan_result, cf_result = await run_plan_cf()
                 if not isinstance(plan_result, Exception): diagnostic_plan, immediate_action = plan_result
                 if not isinstance(cf_result, Exception):   counterfactuals = cf_result
 
@@ -1070,6 +1147,8 @@ class ClinicalReasoner:
             if diagnostic_plan: print(f"[Council] Plan: {len(diagnostic_plan)} steps | Action: {immediate_action[:60]}")
             if counterfactuals: print(f"[Council] Counterfactuals: {len(counterfactuals)}")
             print(f"[Council] {'='*40}\n")
+            
+            await _emit("analysis_complete", {"top_condition": result.top_3_conditions[0].condition if result.top_3_conditions else None})
             return result
 
         except Exception as e:

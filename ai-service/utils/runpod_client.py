@@ -10,7 +10,8 @@ class RunpodClient:
     def __init__(self):
         self.api_key = os.getenv("RUNPOD_API_KEY")
         self.endpoint_id = os.getenv("RUNPOD_ENDPOINT_ID")
-        self.is_configured = bool(self.api_key and self.endpoint_id)
+        # HARD OVERRIDE: Permanently disable RunPod to force GCP Ollama routing
+        self.is_configured = False
         
         if self.is_configured:
             self.url = f"https://api.runpod.ai/v2/{self.endpoint_id}/runsync"

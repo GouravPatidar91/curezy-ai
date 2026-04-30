@@ -55,14 +55,14 @@ def convert_to_soap(patient_state: dict) -> dict:
 
     # ── 2. Extract Symptoms & OPQRST ──
     opqrst = patient_state.get("opqrst", {})
-    chief_complaint = patient_state.get("chief_complaint") or ", ".join(patient_state.get("symptoms", []))
+    chief_complaint = str(patient_state.get("chief_complaint") or ", ".join(patient_state.get("symptoms", [])))[:2000]
     
-    onset = opqrst.get("onset") or patient_state.get("symptom_duration", "Not specified")
-    provocation = opqrst.get("provocation") or "Not specified"
-    quality = opqrst.get("quality") or "Not specified"
-    region = opqrst.get("region") or "Not specified"
-    severity = opqrst.get("severity") or "Not specified"
-    timing = opqrst.get("timing") or "Not specified"
+    onset = str(opqrst.get("onset") or patient_state.get("symptom_duration", "Not specified"))[:500]
+    provocation = str(opqrst.get("provocation") or "Not specified")[:500]
+    quality = str(opqrst.get("quality") or "Not specified")[:500]
+    region = str(opqrst.get("region") or "Not specified")[:500]
+    severity = str(opqrst.get("severity") or "Not specified")[:100]
+    timing = str(opqrst.get("timing") or "Not specified")[:500]
 
     # ── 3. Extract Histories ──
     def to_list(val):

@@ -1,0 +1,73 @@
+version: "3.9"
+
+services:
+  aurix:  # MedGemma 4B
+    image: vllm/vllm-openai:latest
+    runtime: nvidia
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN}
+    ports:
+      - "8001:8000"
+    volumes:
+      - ./models:/models
+      - ~/.cache/huggingface:/root/.cache/huggingface
+    command: >
+      --model google/gemma-1.1-2b-it
+      --host 0.0.0.0
+      --port 8000
+      --gpu-memory-utilization 0.30
+      --max-model-len 4096
+      --enforce-eager
+      --served-model-name model
+      --guided-decoding-backend outlines
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: [gpu]
+    restart: always
+
+  aura:  # OpenBioLLM 8B
+    image: vllm/vllm-openai:latest
+    runtime: nvidia
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN}
+    ports:
+      - "8002:8000"
+    volumes:
+      - ./models:/models
+      - ~/.cache/huggingface:/root/.cache/huggingface
+    command: >
+      --model aaditya/Llama3-OpenBioLLM-8B
+      --host 0.0.0.0
+      --port 8000
+      --gpu-memory-utilization 0.40
+      --max-model-len 4096
+      --enforce-eager
+      --served-model-name model
+      --guided-decoding-backend outlines
+    restart: always
+
+  auris:  # Mistral 7B
+    image: vllm/vllm-openai:latest
+    runtime: nvidia
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN}
+    ports:
+      - "8003:8000"
+    volumes:
+      - ./models:/models
+      - ~/.cache/huggingface:/root/.cache/huggingface
+    command: >
+      --model mistralai/Mistral-7B-Instruct-v0.2
+      --host 0.0.0.0
+      --port 8000
+      --gpu-memory-utilization 0.25
+      --max-model-len 4096
+      --enforce-eager
+      --served-model-name model
+      --guided-decoding-backend outlines
+    restart: always

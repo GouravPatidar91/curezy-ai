@@ -1,4 +1,5 @@
-from fastapi import FastAPI, HTTPException, Depends, Request, UploadFile, File, Header
+from fastapi import FastAPI, HTTPException, Depends, Request, UploadFile, File, Header, WebSocket, WebSocketDisconnect
+from fastapi.responses import StreamingResponse
 import shutil
 import os
 from fastapi.middleware.cors import CORSMiddleware
@@ -28,10 +29,10 @@ from finetune.pipeline import start_pipeline, get_job, list_jobs
 from finetune.deploy import OllamaDeploy
 from utils.email_service import EmailService
 import logging
-import base64 # Added for X-ray analysis RunPod forwarding
-import numpy as np # Added for X-ray analysis RunPod forwarding
-from io import BytesIO # Added for X-ray analysis RunPod forwarding
-import urllib.request # Added for X-ray analysis RunPod forwarding
+import base64
+import numpy as np
+from io import BytesIO
+import urllib.request
 
 
 class EndpointFilter(logging.Filter):
@@ -242,6 +243,44 @@ def preprocess_patient(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.websocket("/ws/analyze/{patient_id}")
+async def websocket_analyze(websocket: WebSocket, patient_id: str):
+    await websocket.accept()
+    print(f"[WebSocket] 🟢 Connected for patient {patient_id}")
+    try:
+        # Wait for the client to send the patient state payload
+        data = await websocket.receive_json()
+        
+        # Define progress callback
+        async def progress_callback(event_data: dict):
+            await websocket.send_json(event_data)
+            
+        patient_state = preprocessor.process(
+            patient_id=patient_id,
+            symptoms_text=data.get("symptoms_text", ""),
+            medical_history_text=data.get("medical_history_text", ""),
+            lab_text=data.get("lab_text", ""),
+            medications_text=data.get("medications_text", ""),
+            age=data.get("age"),
+            gender=data.get("gender"),
+            opqrst=data.get("opqrst")
+        )
+        patient_state_dict = patient_state.dict()
+        
+        clinical_output = await reasoner.analyze(patient_state_dict, progress_callback=progress_callback)
+        clinical_output_dict = clinical_output.dict()
+        
+        await websocket.send_json({"event": "final_result", "data": clinical_output_dict})
+        
+    except WebSocketDisconnect:
+        print(f"[WebSocket] 🔴 Client disconnected for patient {patient_id}")
+    except Exception as e:
+        print(f"[WebSocket] ❌ Error: {e}")
+        try:
+            await websocket.send_json({"event": "error", "message": str(e)})
+        except:
+            pass
+
 @app.post("/analyze")
 @limiter.limit("10/minute")
 async def analyze_patient(
@@ -250,62 +289,32 @@ async def analyze_patient(
     current_user: dict = Depends(get_current_user)
 ):
     try:
-        from utils.runpod_client import RunpodClient
-        rpc = RunpodClient()
+        ollama_host = os.getenv("OLLAMA_HOST", "http://localhost:11434")
+        print(f"[REST] ☁️ Routing AI Council to GCP Ollama @ {ollama_host}")
 
-        if rpc.is_configured:
-            print("[REST] ☁️ Active RunPod credentials detected. Forwarding to Cloud GPU...")
-            
-            runpod_payload = {
-                "patient_id": data.patient_id,
-                "symptoms_text": data.symptoms_text,
-                "medical_history_text": data.medical_history_text,
-                "lab_text": data.lab_text,
-                "medications_text": data.medications_text,
-                "age": data.age,
-                "gender": data.gender
-            }
-            
-            # Send to RunPod Serverless GPU
-            rp_result = await rpc.run_council_analysis(
-                patient_state=runpod_payload,
-                mode="council",
-                model_key=None
-            )
-            
-            patient_state_dict = rp_result.get("patient_state", {})
-            clinical_output_dict = rp_result.get("clinical_analysis", {})
-            confidence_report_dict = rp_result.get("confidence_report", {})
-            
-            data_gaps = uncertainty_engine.generate_active_data_gaps(
-                patient_state_dict, clinical_output_dict
-            )
+        patient_state = preprocessor.process(
+            patient_id=data.patient_id,
+            symptoms_text=data.symptoms_text,
+            medical_history_text=data.medical_history_text,
+            lab_text=data.lab_text,
+            medications_text=data.medications_text,
+            age=data.age,
+            gender=data.gender
+        )
+        patient_state_dict = patient_state.dict()
 
-        else:
-            print("[REST] 💻 No RunPod credentials found. Running AI Council locally...")
-            
-            patient_state = preprocessor.process(
-                patient_id=data.patient_id,
-                symptoms_text=data.symptoms_text,
-                medical_history_text=data.medical_history_text,
-                lab_text=data.lab_text,
-                medications_text=data.medications_text,
-                age=data.age,
-                gender=data.gender
-            )
-            patient_state_dict = patient_state.dict()
+        import asyncio
+        clinical_output = await reasoner.analyze(patient_state_dict)
+        clinical_output_dict = clinical_output.dict()
 
-            clinical_output = reasoner.analyze(patient_state_dict)
-            clinical_output_dict = clinical_output.dict()
+        confidence_report = uncertainty_engine.analyze_clinical_confidence(
+            patient_state_dict, clinical_output_dict
+        )
+        confidence_report_dict = confidence_report.dict()
 
-            confidence_report = uncertainty_engine.analyze_clinical_confidence(
-                patient_state_dict, clinical_output_dict
-            )
-            confidence_report_dict = confidence_report.dict()
-
-            data_gaps = uncertainty_engine.generate_active_data_gaps(
-                patient_state_dict, clinical_output_dict
-            )
+        data_gaps = uncertainty_engine.generate_active_data_gaps(
+            patient_state_dict, clinical_output_dict
+        )
 
         # Step 4.5 — Match Medicines
         treatment_goals = clinical_output_dict.get("treatment_goals", [])
@@ -403,22 +412,9 @@ async def analyze_xray(
         with open(temp_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
 
-        from utils.runpod_client import RunpodClient
-        rpc = RunpodClient()
-
-        if rpc.is_configured:
-            print("[XRay] ☁️ Forwarding image to RunPod GPU...")
-            # We need to send the image as base64 in the JSON payload
-            with open(temp_path, "rb") as bf:
-                img_b64 = base64.b64encode(bf.read()).decode()
-            
-            result = await rpc.run_council_analysis(
-                patient_state={"image_base64": img_b64},
-                mode="xray"
-            )
-        else:
-            print("[XRay] 💻 Running local analysis (Warning: resource intensive)...")
-            result = xray_analyzer.analyze(temp_path)
+        ollama_host = os.getenv("OLLAMA_HOST", "http://localhost:11434")
+        print(f"[XRay] ☁️ Running X-ray analysis (Ollama @ {ollama_host})...")
+        result = xray_analyzer.analyze(temp_path)
 
         if os.path.exists(temp_path):
             os.remove(temp_path)
@@ -547,6 +543,68 @@ def resume_conversation(
         "analysis_result": state.analysis_result,
         "messages": [m.dict() for m in state.messages]
     }
+
+
+@app.post("/chat/message/stream")
+async def stream_chat_message(
+    request: Request,
+    data: ChatInput
+):
+    import asyncio
+    import json
+    
+    if not data.conversation_id:
+        raise HTTPException(status_code=400, detail="conversation_id required")
+
+    state = conversation_manager.get_conversation(data.conversation_id)
+    if not state:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+
+    result_dict = intake_engine.process_message(
+        conversation_id=data.conversation_id,
+        user_message=data.message
+    )
+
+    if not result_dict["trigger_analysis"]:
+        # If no analysis triggered, just return immediately
+        async def fast_stream():
+            yield f'data: {json.dumps({"type":"result", "data": {"success": True, "message": result_dict["response"], "stage": result_dict["stage"], "stage_metadata": result_dict["stage_metadata"]}})}\n\n'
+        return StreamingResponse(fast_stream(), media_type="text/event-stream")
+
+    # If analysis triggered, stream progress while it runs
+    async def event_stream():
+        yield 'data: {"type":"status","message":"🔬 Preparing clinical data..."}\n\n'
+        
+        # Start analysis in background
+        task = asyncio.create_task(_run_council_analysis(data.conversation_id, state, data.selected_model))
+        
+        statuses = [
+            "🧠 AURIX primary diagnosis...",
+            "⚖️ AURA validating clinical evidence...",
+            "🎯 AURIS challenging edge cases...",
+            "📊 Bayesian consensus engine calculating...",
+            "📝 Generating final medical brief..."
+        ]
+        
+        for status in statuses:
+            if task.done(): break
+            yield f'data: {json.dumps({"type":"status","message":status})}\n\n'
+            # Wait up to 3 seconds before next fake status, unless task finishes
+            try:
+                await asyncio.wait_for(asyncio.shield(task), timeout=3.0)
+                break
+            except asyncio.TimeoutError:
+                continue
+                
+        # Wait for the task to fully complete if it hasn't
+        if not task.done():
+            yield 'data: {"type":"status","message":"⏳ Finalizing..."}\n\n'
+            await task
+            
+        final_result = task.result()
+        yield f'data: {json.dumps({"type":"result","data":final_result})}\n\n'
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
 
 
 @app.post("/chat/message")
@@ -679,19 +737,9 @@ async def upload_report(
     # — Medical Image: analyzer —
     else:
         try:
-            from utils.runpod_client import RunpodClient
-            rpc = RunpodClient()
-            if rpc.is_configured:
-                print("[XRay] ☁️ Forwarding image from doc-flow to RunPod GPU...")
-                with open(save_path, "rb") as bf:
-                    img_b64 = base64.b64encode(bf.read()).decode()
-                findings = await rpc.run_council_analysis(
-                    patient_state={"image_base64": img_b64},
-                    mode="xray"
-                )
-            else:
-                print("[XRay] 💻 Running local analysis for doc-flow...")
-                findings = xray_analyzer.analyze(save_path)
+            ollama_host = os.getenv("OLLAMA_HOST", "http://localhost:11434")
+            print(f"[XRay] ☁️ Running X-ray analysis for doc-flow (Ollama @ {ollama_host})...")
+            findings = xray_analyzer.analyze(save_path)
         except Exception as e:
             findings = {"success": False, "error": str(e)}
 
@@ -822,71 +870,37 @@ async def _run_council_analysis(conversation_id: str, state, selected_model: str
             }
 
     try:
-        from utils.runpod_client import RunpodClient
-        rpc = RunpodClient()
+        ollama_host = os.getenv("OLLAMA_HOST", "http://localhost:11434")
+        print(f"[Chat] ☁️ Routing AI Council to GCP Ollama @ {ollama_host}")
+        import asyncio
 
-        if rpc.is_configured:
-            print("[Chat] ☁️ Active RunPod credentials detected. Forwarding to Cloud GPU...")
-            
-            # Pack exactly what RunPod's preprocessor expects
-            runpod_payload = {
-                "patient_id": payload.get("patient_id", conversation_id),
-                "symptoms_text": payload.get("symptoms_text", ""),
-                "medical_history_text": payload.get("medical_history_text") or payload.get("prior_diagnosis", ""),
-                "lab_text": payload.get("lab_text", ""),
-                "medications_text": payload.get("medications_text", ""),
-                "age": payload.get("age"),
-                "gender": payload.get("gender")
-            }
-            
-            # Send to RunPod Serverless GPU
-            rp_result = await rpc.run_council_analysis(
-                patient_state=runpod_payload,
-                mode="single" if use_single else "council",
-                model_key=selected_model.lower() if use_single else None
-            )
-            
-            # Extract standard dicts from RunPod JSON response
-            patient_state_dict = rp_result.get("patient_state", {})
-            clinical_output_dict = rp_result.get("clinical_analysis", {})
-            confidence_report_dict = rp_result.get("confidence_report", {})
-            
-            # We still need active data gaps locally for the chat UI missing data chips
-            data_gaps = uncertainty_engine.generate_active_data_gaps(
-                patient_state_dict, clinical_output_dict
-            )
+        patient_state = preprocessor.process(
+            patient_id=payload.get("patient_id", conversation_id),
+            symptoms_text=payload.get("symptoms_text", ""),
+            medical_history_text=payload.get("medical_history_text") or payload.get("prior_diagnosis", ""),
+            lab_text=payload.get("lab_text", ""),
+            medications_text=payload.get("medications_text", ""),
+            age=payload.get("age"),
+            gender=payload.get("gender"),
+            opqrst=payload.get("opqrst")
+        )
+        patient_state_dict = patient_state.dict()
 
+        # ── Route to single model or full council ──
+        if use_single:
+            clinical_output = await reasoner.analyze_single(patient_state_dict, selected_model.lower())
         else:
-            print("[Chat] 💻 No RunPod credentials found. Running AI Council locally...")
-            import asyncio
-            
-            patient_state = preprocessor.process(
-                patient_id=payload.get("patient_id", conversation_id),
-                symptoms_text=payload.get("symptoms_text", ""),
-                medical_history_text=payload.get("medical_history_text") or payload.get("prior_diagnosis", ""),
-                lab_text=payload.get("lab_text", ""),
-                medications_text=payload.get("medications_text", ""),
-                age=payload.get("age"),
-                gender=payload.get("gender"),
-                opqrst=payload.get("opqrst")
-            )
-            patient_state_dict = patient_state.dict()
+            clinical_output = await reasoner.analyze(patient_state_dict)
+        clinical_output_dict = clinical_output.dict()
 
-            # ── Route to single model or full council ──
-            if use_single:
-                clinical_output = await asyncio.to_thread(reasoner.analyze_single, patient_state_dict, selected_model.lower())
-            else:
-                clinical_output = await asyncio.to_thread(reasoner.analyze, patient_state_dict)
-            clinical_output_dict = clinical_output.dict()
+        confidence_report = uncertainty_engine.analyze_clinical_confidence(
+            patient_state_dict, clinical_output_dict
+        )
+        confidence_report_dict = confidence_report.dict()
 
-            confidence_report = uncertainty_engine.analyze_clinical_confidence(
-                patient_state_dict, clinical_output_dict
-            )
-            confidence_report_dict = confidence_report.dict()
-
-            data_gaps = uncertainty_engine.generate_active_data_gaps(
-                patient_state_dict, clinical_output_dict
-            )
+        data_gaps = uncertainty_engine.generate_active_data_gaps(
+            patient_state_dict, clinical_output_dict
+        )
 
         # ── Add successful result to Semantic Cache ──
         if not use_single:
