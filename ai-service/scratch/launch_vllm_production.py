@@ -49,27 +49,27 @@ containers = [
     {
         "name": "aurix",
         "port": 8001,
-        "model": "microsoft/Phi-3-mini-4k-instruct", 
-        "util": 0.10,
-        "extra": ""
+        "model": "bartowski/OpenBioLLM-Llama3-8B-AWQ", 
+        "util": 0.35,
+        "extra": "--quantization awq"
     },
     {
         "name": "aura",
         "port": 8002,
-        "model": "casperhansen/llama-3-8b-instruct-awq",
-        "util": 0.25,
+        "model": "BioMistral/BioMistral-7B-AWQ-QGS128-W4-GEMM",
+        "util": 0.30,
         "extra": "--quantization awq"
     },
     {
         "name": "auris",
         "port": 8003,
-        "model": "TheBloke/Mistral-7B-Instruct-v0.2-AWQ",
-        "util": 0.25,
+        "model": "bartowski/gemma-2-2b-it-AWQ",
+        "util": 0.15,
         "extra": "--quantization awq"
     }
 ]
 
-print("--- LAUNCHING VLLM COUNCIL (STABLE v0.6.3) ---")
+print("--- LAUNCHING MEDICAL AWQ COUNCIL (vLLM) ---")
 for c in containers:
     cmd = (
         f"sudo docker run -d --name {c['name']} "
@@ -81,11 +81,11 @@ for c in containers:
         f"vllm/vllm-openai:v0.6.3.post1 "
         f"--model {c['model']} "
         f"--gpu-memory-utilization {c['util']} "
-        f"--max-model-len 2048 "
+        f"--max-model-len 4096 "
         f"{c['extra']}"
     )
     run_remote(cmd)
-    time.sleep(10) # Wait for each to claim VRAM
+    time.sleep(15) # Wait for each to claim VRAM
 
 print("\n--- STATUS ---")
 run_remote("sudo docker ps")

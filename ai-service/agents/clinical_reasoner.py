@@ -196,30 +196,33 @@ class OutputValidator:
 # AURA   = main balanced model  (Evidence Validator,     weight 1.4)
 # AURIS  = fast lightweight     (Devil's Advocate,       weight 1.2)
 # AURANET = the full council system
+COUNCIL = []
+
+# Council Models (Specialized Medical AWQ)
 COUNCIL = [
     {
         "name": "Curezy AURIX",
-        "model": "alibayram/medgemma:4b",
+        "model": "bartowski/OpenBioLLM-Llama3-8B-AWQ",
         "specialty": "Primary Clinician",
         "role": "Lead Diagnostician",
         "weight": 1.5,
-        "tokens": 2048
+        "tokens": 4096
     },
     {
         "name": "Curezy AURA",
-        "model": "koesn/llama3-openbiollm-8b:latest",
+        "model": "BioMistral/BioMistral-7B-AWQ-QGS128-W4-GEMM",
         "specialty": "Clinical Researcher",
         "role": "Evidence Validator",
         "weight": 1.4,
-        "tokens": 2048
+        "tokens": 4096
     },
     {
         "name": "Curezy AURIS",
-        "model": "mistral:7b",
+        "model": "bartowski/gemma-2-2b-it-AWQ",
         "specialty": "Medical Analyst",
         "role": "Devil's Advocate",
         "weight": 1.2,
-        "tokens": 1536
+        "tokens": 2048
     },
 ]
 
@@ -696,17 +699,24 @@ class WeightedConsensusEngine:
 class ClinicalReasoner:
 
     def __init__(self):
-        # Optimized Parallel Ollama Engine (Stable for L4 GPU)
-        print("[Council] Parallel Ollama Engine ACTIVE (NUM_PARALLEL=3)")
-        self.llm = CouncilLLMClient()
-            
-        self.prompts   = PromptBuilder()
-        self.detector  = HallucinationDetector()
-        self.consensus = WeightedConsensusEngine()
-        self.validator = OutputValidator()
-        self.rag       = RAGRetriever()
-        print(f"[Council] Initialized ({len(COUNCIL)} members):")
-        for d in COUNCIL: print(f"  {d['name']} -- {d['model']}")
+        # Auto-detect or Force vLLM Parallel Engine
+        import socket
+        def is_port_open(port):
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                return s.connect_ex(('localhost', port)) == 0
+        
+        # Force vLLM in production or if detected
+        env_mode = os.getenv("ENVIRONMENT", "development").lower()
+        has_vllm = is_port_open(8001)
+        use_vllm_env = os.getenv("USE_VLLM", "false").lower() == "true"
+        
+        if env_mode == "production" or has_vllm or use_vllm_env:
+            print("[Council] High-speed Medical vLLM Engine ACTIVE")
+            from agents.vllm_client import VLLMCouncilClient
+            self.llm = VLLMCouncilClient()
+        else:
+            print("[Council] Fallback mode: Ollama Engine")
+            self.llm = CouncilLLMClient()
             
         self.prompts   = PromptBuilder()
         self.detector  = HallucinationDetector()
