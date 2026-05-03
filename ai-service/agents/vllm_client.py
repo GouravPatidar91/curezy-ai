@@ -71,9 +71,8 @@ class VLLMCouncilClient:
                 payload["response_format"] = {
                     "type": "json_schema",
                     "json_schema": {
-                        "name": "diagnosis",
-                        "schema": CONDITION_JSON_SCHEMA,
-                        "strict": True
+                        "name": "clinical_diagnosis",
+                        "schema": CONDITION_JSON_SCHEMA
                     }
                 }
 

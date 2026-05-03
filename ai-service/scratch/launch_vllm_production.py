@@ -57,14 +57,14 @@ containers = [
         "name": "aura",
         "port": 8002,
         "model": "BioMistral/BioMistral-7B-AWQ-QGS128-W4-GEMM",
-        "util": 0.32,
+        "util": 0.30,
         "extra": "--quantization awq --max-model-len 1024"
     },
     {
         "name": "auris",
         "port": 8003,
         "model": "bartowski/gemma-2-2b-it-AWQ",
-        "util": 0.15,
+        "util": 0.22,
         "extra": "--quantization awq --max-model-len 1024"
     }
 ]
@@ -84,7 +84,7 @@ for c in containers:
         f"{c['extra']}"
     )
     run_remote(cmd)
-    time.sleep(10) # Wait for each to claim VRAM
+    time.sleep(20) # Wait for each to claim VRAM
 
 print("\n--- STATUS ---")
 run_remote("sudo docker ps")
