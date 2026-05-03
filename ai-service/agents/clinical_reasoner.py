@@ -692,11 +692,22 @@ class WeightedConsensusEngine:
 class ClinicalReasoner:
 
     def __init__(self):
-        use_vllm = os.getenv("USE_VLLM", "false").lower() == "true"
-        if use_vllm:
-            print("[Council] High-speed vLLM engine enabled")
+        # Auto-detect vLLM Parallel Engine
+        import socket
+        def is_port_open(port):
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                return s.connect_ex(('localhost', port)) == 0
+        
+        # If port 8001 (AURIX) is open, assume Parallel Engine is ready
+        has_vllm = is_port_open(8001)
+        use_vllm_env = os.getenv("USE_VLLM", "false").lower() == "true"
+        
+        if has_vllm or use_vllm_env:
+            print("[Council] High-speed vLLM Parallel Engine detected/enabled")
+            from agents.vllm_client import VLLMCouncilClient
             self.llm = VLLMCouncilClient()
         else:
+            print("[Council] Falling back to Ollama Sequential Engine")
             self.llm = CouncilLLMClient()
             
         self.prompts   = PromptBuilder()

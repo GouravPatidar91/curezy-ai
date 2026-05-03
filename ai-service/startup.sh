@@ -56,15 +56,23 @@ EXTERNAL_IP=$(curl -sf -H "Metadata-Flavor: Google" \
 
 echo "[INFO] External IP: ${EXTERNAL_IP}"
 
-# 6. Update Cloud Run service OLLAMA_HOST (if applicable)
-# Note: Ensure you have gcloud authenticated on the VM
+# 6. Update Cloud Run service with latest IP and vLLM status
 if command -v gcloud &> /dev/null; then
-  echo "[INFO] Updating Cloud Run OLLAMA_HOST..."
-  gcloud run services update ai-service \
-    --region=us-central1 \
-    --update-env-vars="OLLAMA_HOST=http://${EXTERNAL_IP}:11434" \
-    --quiet || echo "[WARN] Cloud Run update failed (check auth)"
+  # Check if vLLM containers are running
+  if sudo docker ps | grep -q "aurix"; then
+    echo "[INFO] Configuring Cloud Run for vLLM Parallel Mode..."
+    gcloud run services update ai-service \
+      --region=us-central1 \
+      --update-env-vars="USE_VLLM=true,OLLAMA_HOST=http://${EXTERNAL_IP}:11434" \
+      --quiet || echo "[WARN] Cloud Run update failed"
+  else
+    echo "[INFO] Configuring Cloud Run for Ollama Sequential Mode..."
+    gcloud run services update ai-service \
+      --region=us-central1 \
+      --update-env-vars="USE_VLLM=false,OLLAMA_HOST=http://${EXTERNAL_IP}:11434" \
+      --quiet || echo "[WARN] Cloud Run update failed"
+  fi
 fi
 
-echo "[OK] Startup complete — Council ready @ 62 tok/s"
+echo "[OK] Startup complete — Parallel Engine Ready"
 echo "=== Curezy startup finished: $(date) ==="
