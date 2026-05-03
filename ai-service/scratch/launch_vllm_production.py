@@ -63,8 +63,8 @@ containers = [
     {
         "name": "auris",
         "port": 8003,
-        "model": "bartowski/gemma-2-2b-it-AWQ",
-        "util": 0.15,
+        "model": "casperhansen/llama-3-8b-instruct-awq",
+        "util": 0.25,
         "extra": "--quantization awq"
     }
 ]
