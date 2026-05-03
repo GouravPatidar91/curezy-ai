@@ -734,7 +734,7 @@ class ClinicalReasoner:
             try:
                 # Try grammar-constrained JSON schema first
                 tasks_schema = [
-                    self.llm.query_async(prompt, doctor["model"], doctor["tokens"],
+                    self.llm.query_async(prompt, doctor["name"], doctor["tokens"],
                                          use_json_schema=True, temperature=t)
                     for t in temperatures
                 ]
@@ -758,7 +758,7 @@ class ClinicalReasoner:
                 if not parsed_outputs:
                     # Fallback: plain text CoT prompt (no schema)
                     tasks_plain = [
-                        self.llm.query_async(prompt, doctor["model"], doctor["tokens"],
+                        self.llm.query_async(prompt, doctor["name"], doctor["tokens"],
                                               use_json_schema=False, temperature=t)
                         for t in temperatures
                     ]
@@ -830,7 +830,7 @@ class ClinicalReasoner:
         for attempt in range(3):
             try:
                 prompt = self.prompts.debate_prompt(soap, doctor, all_outputs)
-                raw    = await self.llm.query_async(prompt, doctor["model"], 768, use_json_schema=False, temperature=0.2)
+                raw    = await self.llm.query_async(prompt, doctor["name"], 768, use_json_schema=False, temperature=0.2)
                 output = self.llm.parse_json(raw)
                 if output and output.get("updated_top_condition"):
                     return {
@@ -851,7 +851,7 @@ class ClinicalReasoner:
     async def _run_moderator_async(self, debate_outputs: list, patient_symptoms: str) -> dict:
         try:
             prompt = self.prompts.moderator_prompt(debate_outputs, patient_symptoms)
-            raw    = await self.llm.query_async(prompt, COUNCIL[0]["model"], 512, use_json_schema=False, temperature=0.1)
+            raw    = await self.llm.query_async(prompt, COUNCIL[0]["name"], 512, use_json_schema=False, temperature=0.1)
             output = self.llm.parse_json(raw)
             if output and output.get("consensus_narrative"):
                 return output
@@ -949,7 +949,7 @@ class ClinicalReasoner:
             doctor = COUNCIL[i]
             try:
                 critic_prompt = build_critic_prompt(soap["soap_string"], doctor["name"], output)
-                raw           = await self.llm.query_async(critic_prompt, doctor["model"], 512,
+                raw           = await self.llm.query_async(critic_prompt, doctor["name"], 512,
                                                             use_json_schema=False, temperature=0.1)
                 critique      = self.llm.parse_json(raw)
                 if not critique:
@@ -958,7 +958,7 @@ class ClinicalReasoner:
                 if needs_revision:
                     print(f"[Thinker]  {doctor['name']} needs revision: {instruction[:80]}")
                     rev_prompt  = build_revision_prompt(soap["soap_string"], doctor, output, critique)
-                    rev_raw     = await self.llm.query_async(rev_prompt, doctor["model"], 1024,
+                    rev_raw     = await self.llm.query_async(rev_prompt, doctor["name"], 1024,
                                                               use_json_schema=True, temperature=0.1)
                     rev_parsed  = self.llm.parse_json(rev_raw)
                     new_conds   = normalize_conditions_list(
@@ -992,7 +992,7 @@ class ClinicalReasoner:
     async def _run_diagnostic_plan_async(self, top_condition: str, probability: float, soap: dict) -> tuple:
         try:
             prompt  = build_planner_prompt(top_condition, probability, soap["soap_string"])
-            raw     = await self.llm.query_async(prompt, COUNCIL[0]["model"], 768,
+            raw     = await self.llm.query_async(prompt, COUNCIL[0]["name"], 768,
                                                   use_json_schema=False, temperature=0.1)
             parsed  = self.llm.parse_json(raw)
             return parse_plan_output(parsed)
@@ -1004,7 +1004,7 @@ class ClinicalReasoner:
     async def _run_counterfactual_async(self, top_condition: str, probability: float, soap: dict) -> list:
         try:
             prompt   = build_counterfactual_prompt(top_condition, probability, soap)
-            raw      = await self.llm.query_async(prompt, COUNCIL[2]["model"], 512,
+            raw      = await self.llm.query_async(prompt, COUNCIL[2]["name"], 512,
                                                    use_json_schema=False, temperature=0.3)
             parsed   = self.llm.parse_json(raw)
             insights = parse_counterfactual_output(parsed)
@@ -1019,7 +1019,7 @@ class ClinicalReasoner:
     async def _run_confidence_audit_async(self, conditions: list, confidence: float, soap: dict) -> dict:
         try:
             prompt  = build_audit_prompt(soap["soap_string"], conditions, confidence)
-            raw     = await self.llm.query_async(prompt, COUNCIL[0]["model"], 400,
+            raw     = await self.llm.query_async(prompt, COUNCIL[0]["name"], 400,
                                                   use_json_schema=False, temperature=0.1)
             parsed  = self.llm.parse_json(raw)
             if parsed and parsed.get("audit_grade"):
@@ -1114,7 +1114,7 @@ class ClinicalReasoner:
                 for i, o in enumerate(council_outputs):
                     if o.get("conditions"):
                         top_cond = o["conditions"][0].get("condition","Unknown")
-                        tasks.append((i, self._refine_evidence_async(top_cond, soap, COUNCIL[i]["model"])))
+                        tasks.append((i, self._refine_evidence_async(top_cond, soap, COUNCIL[i]["name"])))
                 refined = await asyncio.gather(*[t[1] for t in tasks], return_exceptions=True)
                 for j, (i, _) in enumerate(tasks):
                     if not isinstance(refined[j], Exception) and refined[j]:
