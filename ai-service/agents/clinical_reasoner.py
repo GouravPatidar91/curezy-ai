@@ -383,8 +383,13 @@ Step 3: Must distinguish STEMI from NSTEMI -- ECG critical. Aortic dissection mu
         rf_str      = ", ".join(red_flags) if red_flags else "none identified"
         soap_string = soap["soap_string"]
         
-        # Include raw_payload as JSON for the model to see the standardized structure
-        raw_json = json.dumps(raw_payload, indent=1) if raw_payload else "{}"
+        # Safely serialize raw_payload by removing non-JSON objects (like _tracker)
+        if raw_payload:
+            # Create a shallow copy and remove any private objects
+            safe_payload = {k: v for k, v in raw_payload.items() if not k.startswith("_")}
+            raw_json = json.dumps(safe_payload, indent=1)
+        else:
+            raw_json = "{}"
 
         return f"""You are {doctor['name']}, {doctor['specialty']}. Your role: {doctor['role']}.
 You are conducting a formal clinical assessment using the OPQRST/SOCRATES framework.
@@ -1016,7 +1021,7 @@ class ClinicalReasoner:
     async def analyze(self, patient_state: dict, progress_callback=None) -> FinalClinicalOutput:
         pid   = patient_state.get("patient_id","unknown")
         tracker = LatencyTracker()
-        patient_state["_tracker"] = tracker
+        # Do not inject tracker into patient_state to avoid JSON serialization errors
         
         start = time.time()
 
@@ -1058,7 +1063,9 @@ class ClinicalReasoner:
 
         # Phase 6: RAG Context Injection
         if self.rag and self.rag.enabled:
-            rag_context = self.rag.retrieve_guidelines(patient_symptoms)
+            # Ensure symptoms is a string for the embedding model
+            symptoms_str = ", ".join(patient_symptoms) if isinstance(patient_symptoms, list) else str(patient_symptoms)
+            rag_context = self.rag.retrieve_guidelines(symptoms_str)
             if rag_context:
                 print(f"[Council]  Injected PubMed clinical guidelines")
                 soap["soap_string"] += f"\n\n{rag_context}\nCRITICAL INSTRUCTION: Use the guidelines above to inform your reasoning."

@@ -35,8 +35,14 @@ def benchmark_backend():
             
             if result.get("success"):
                 analysis = result.get("analysis", {})
-                print(f"Diagnosis: {analysis.get('top_3_conditions', [{}])[0].get('condition', 'Unknown')}")
+                conditions = analysis.get('top_3_conditions', [])
+                top_diagnosis = conditions[0].get('condition', 'Unknown') if conditions else 'None detected'
+                
+                print(f"Diagnosis: {top_diagnosis}")
                 print(f"Confidence: {analysis.get('consensus_confidence', 0):.1f}%")
+                
+                if top_diagnosis == 'None detected' and analysis.get('disagreement_details'):
+                    print(f"\n[CRITICAL] Internal AI Error: {analysis.get('disagreement_details')}")
                 
                 # New Latency Telemetry
                 breakdown = analysis.get("latency_breakdown")
@@ -50,7 +56,8 @@ def benchmark_backend():
                         for model in breakdown["models"]:
                             print(f"  - {model['model']:<15}: {model['duration_s']}s ({model['chars_per_sec']} chars/s)")
             else:
-                print(f"[FAIL] Error: {result.get('error')}")
+                print(f"[FAIL] Backend Error: {result.get('error')}")
+                print(f"Full Response: {json.dumps(result, indent=2)}")
                 
     except Exception as e:
         print(f"[FAIL] Connection Failed: {e}")
