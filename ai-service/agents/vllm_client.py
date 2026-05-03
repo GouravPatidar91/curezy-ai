@@ -116,11 +116,13 @@ class VLLMCouncilClient:
                 e = s.find("```")
                 if e != -1: return json.loads(s[:e].strip())
             except: pass
-        # Strategy 3: Fix common issues
+        # Strategy 3: Fix common issues and look for ANY braced block
         try:
-            s, e = text.find("{"), text.rfind("}")+1
+            # Clean up common LLM artifacts
+            clean_text = text.replace("```json", "").replace("```", "").strip()
+            s, e = clean_text.find("{"), clean_text.rfind("}")+1
             if s != -1 and e > s:
-                chunk = text[s:e].replace("'",'"').replace("True","true").replace("False","false").replace("None","null")
+                chunk = clean_text[s:e].replace("'",'"').replace("True","true").replace("False","false").replace("None","null")
                 return json.loads(chunk)
         except: pass
         print(f"[Council] JSON parse failed on: {text[:150]}")

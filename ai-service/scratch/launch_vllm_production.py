@@ -2,9 +2,23 @@ import os
 import subprocess
 import time
 
-HF_TOKEN = os.getenv("HF_TOKEN")
+# Load HF_TOKEN from .env manually to avoid dependency on python-dotenv
+def load_env():
+    env_vars = {}
+    env_path = os.path.join(os.path.dirname(__file__), "..", ".env")
+    if os.path.exists(env_path):
+        with open(env_path, "r") as f:
+            for line in f:
+                if "=" in line and not line.startswith("#"):
+                    k, v = line.strip().split("=", 1)
+                    env_vars[k] = v
+    return env_vars
+
+env = load_env()
+HF_TOKEN = env.get("HF_TOKEN") or os.getenv("HF_TOKEN")
+
 if not HF_TOKEN:
-    print("[ERROR] HF_TOKEN not found in environment. vLLM needs this to pull models.")
+    print("[ERROR] HF_TOKEN not found in .env or environment. vLLM needs this for gated models.")
     # In production, we'd exit here, but for this session we'll assume it's in the VM's env.
 
 def run_remote(command):
@@ -35,7 +49,7 @@ containers = [
     {
         "name": "aurix",
         "port": 8001,
-        "model": "google/gemma-2b-it", # Replace with MedGemma 4B if VRAM allows
+        "model": "microsoft/Phi-3-mini-4k-instruct", 
         "util": 0.15,
         "extra": ""
     },
@@ -43,14 +57,14 @@ containers = [
         "name": "aura",
         "port": 8002,
         "model": "casperhansen/llama-3-8b-instruct-awq",
-        "util": 0.35,
+        "util": 0.30,
         "extra": "--quantization awq"
     },
     {
         "name": "auris",
         "port": 8003,
-        "model": "MaziyarPanahi/Mistral-7B-Instruct-v0.3-AWQ",
-        "util": 0.30,
+        "model": "TheBloke/Mistral-7B-Instruct-v0.2-AWQ",
+        "util": 0.25,
         "extra": "--quantization awq"
     }
 ]
