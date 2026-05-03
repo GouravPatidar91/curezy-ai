@@ -50,22 +50,22 @@ containers = [
         "name": "aurix",
         "port": 8001,
         "model": "bartowski/OpenBioLLM-Llama3-8B-AWQ", 
-        "util": 0.42,
-        "extra": "--quantization awq --max-model-len 2048"
+        "util": 0.38,
+        "extra": "--quantization awq --max-model-len 2048 --enforce-eager"
     },
     {
         "name": "aura",
         "port": 8002,
         "model": "BioMistral/BioMistral-7B-AWQ-QGS128-W4-GEMM",
-        "util": 0.30,
-        "extra": "--quantization awq --max-model-len 1024"
+        "util": 0.28,
+        "extra": "--quantization awq --max-model-len 1024 --enforce-eager"
     },
     {
         "name": "auris",
         "port": 8003,
         "model": "bartowski/gemma-2-2b-it-AWQ",
-        "util": 0.22,
-        "extra": "--quantization awq --max-model-len 1024"
+        "util": 0.12,
+        "extra": "--quantization awq --max-model-len 1024 --enforce-eager"
     }
 ]
 
