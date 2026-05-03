@@ -280,8 +280,12 @@ class CouncilLLMClient:
                 "repeat_penalty": 1.1,
                 "stop": ["USER:", "Human:", "Assistant:", "=== WORKED EXAMPLE"]
             }
+            # Map brand names back to model IDs for Ollama
+            model_map = {d["name"]: d["model"] for d in COUNCIL}
+            actual_model = model_map.get(model, model)
+
             kwargs = {
-                "model":      model,
+                "model":      actual_model,
                 "prompt":     prompt,
                 "options":    options,
                 "keep_alive": -1  # FORCE VRAM RESIDENCY PERMANENTLY
@@ -692,24 +696,17 @@ class WeightedConsensusEngine:
 class ClinicalReasoner:
 
     def __init__(self):
-        # Auto-detect or Force vLLM Parallel Engine
-        import socket
-        def is_port_open(port):
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                return s.connect_ex(('localhost', port)) == 0
-        
-        # Force vLLM in production or if detected
-        env_mode = os.getenv("ENVIRONMENT", "development").lower()
-        has_vllm = is_port_open(8001)
-        use_vllm_env = os.getenv("USE_VLLM", "false").lower() == "true"
-        
-        if env_mode == "production" or has_vllm or use_vllm_env:
-            print("[Council] High-speed vLLM Parallel Engine ACTIVE")
-            from agents.vllm_client import VLLMCouncilClient
-            self.llm = VLLMCouncilClient()
-        else:
-            print("[Council] Fallback mode: Ollama Sequential Engine")
-            self.llm = CouncilLLMClient()
+        # Optimized Parallel Ollama Engine (Stable for L4 GPU)
+        print("[Council] Parallel Ollama Engine ACTIVE (NUM_PARALLEL=3)")
+        self.llm = CouncilLLMClient()
+            
+        self.prompts   = PromptBuilder()
+        self.detector  = HallucinationDetector()
+        self.consensus = WeightedConsensusEngine()
+        self.validator = OutputValidator()
+        self.rag       = RAGRetriever()
+        print(f"[Council] Initialized ({len(COUNCIL)} members):")
+        for d in COUNCIL: print(f"  {d['name']} -- {d['model']}")
             
         self.prompts   = PromptBuilder()
         self.detector  = HallucinationDetector()

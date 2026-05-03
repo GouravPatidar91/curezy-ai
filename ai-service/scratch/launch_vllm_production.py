@@ -50,14 +50,14 @@ containers = [
         "name": "aurix",
         "port": 8001,
         "model": "microsoft/Phi-3-mini-4k-instruct", 
-        "util": 0.15,
+        "util": 0.10,
         "extra": ""
     },
     {
         "name": "aura",
         "port": 8002,
         "model": "casperhansen/llama-3-8b-instruct-awq",
-        "util": 0.30,
+        "util": 0.25,
         "extra": "--quantization awq"
     },
     {
@@ -69,7 +69,7 @@ containers = [
     }
 ]
 
-print("--- LAUNCHING VLLM COUNCIL ---")
+print("--- LAUNCHING VLLM COUNCIL (STABLE v0.6.3) ---")
 for c in containers:
     cmd = (
         f"sudo docker run -d --name {c['name']} "
@@ -78,13 +78,14 @@ for c in containers:
         f"-p {c['port']}:8000 "
         f"--ipc=host "
         f"-e HUGGING_FACE_HUB_TOKEN={HF_TOKEN} "
-        f"vllm/vllm-openai:latest "
+        f"vllm/vllm-openai:v0.6.3.post1 "
         f"--model {c['model']} "
         f"--gpu-memory-utilization {c['util']} "
         f"--max-model-len 2048 "
         f"{c['extra']}"
     )
     run_remote(cmd)
+    time.sleep(10) # Wait for each to claim VRAM
 
 print("\n--- STATUS ---")
 run_remote("sudo docker ps")

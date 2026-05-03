@@ -18,10 +18,10 @@ cat > /etc/systemd/system/ollama.service.d/override.conf << 'EOF'
 [Service]
 Environment="OLLAMA_KEEP_ALIVE=-1"
 Environment="OLLAMA_MAX_LOADED_MODELS=3"
-Environment="OLLAMA_NUM_PARALLEL=1"
+Environment="OLLAMA_NUM_PARALLEL=3"
 EOF
 systemctl daemon-reload
-echo "[OK] Ollama VRAM config applied (KEEP_ALIVE=-1, MAX_MODELS=3)"
+echo "[OK] Ollama Parallel Config applied (NUM_PARALLEL=3)"
 
 # 2. Start Ollama
 systemctl enable ollama
