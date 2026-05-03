@@ -4,6 +4,7 @@ import json
 import time
 import traceback
 import asyncio
+from utils.latency import LatencyTracker
 from collections import Counter
 from typing import List, Optional, Dict, Tuple
 from pydantic import BaseModel
@@ -12,20 +13,20 @@ from dotenv import load_dotenv
 
 load_dotenv()  # ensure .env is loaded before reading OLLAMA_HOST
 
-# ── GCP Ollama host — read once at import time ─────────────────────────────────
+#  GCP Ollama host -- read once at import time 
 # Set OLLAMA_HOST in .env to point at the GCP VM running Ollama.
 # Example: OLLAMA_HOST=http://136.119.122.149:11434
 # Falls back to localhost for local development.
 _OLLAMA_HOST: str = os.getenv("OLLAMA_HOST", "http://localhost:11434")
 
-# ── Knowledge & Support imports ──────────────────────────────────────────────
+#  Knowledge & Support imports 
 from knowledge.symptom_map import format_rag_block, get_red_flags
 from knowledge.icd10_map import normalize_condition_name, normalize_conditions_list
 from agents.soap_converter import convert_to_soap
 from agents.clinical_rules import run_clinical_rules
 from agents.evidence_extractor import build_evidence_prompt, extract_evidence_from_raw
 
-# ── Phase 1 — Metacognitive Reasoning ────────────────────────────────────────
+#  Phase 1 -- Metacognitive Reasoning 
 from agents.thinker import (
     build_critic_prompt, build_revision_prompt,
     parse_critique, get_must_check_conditions
@@ -35,15 +36,16 @@ from agents.confidence_auditor import (
     build_audit_prompt, parse_audit_result, confidence_adjustment
 )
 
-# ── Phase 2 — Feedback Infrastructure ────────────────────────────────────────
+#  Phase 2 -- Feedback Infrastructure 
 from agents.quality_scorer import compute_q_score
 
 from agents.rag_retriever import RAGRetriever
 
-# ── Phase 3 — Dynamic Few-Shot ────────────────────────────────────────────────
+#  Phase 3 -- Dynamic Few-Shot 
 from agents.fewshot_curator import get_dynamic_examples, STATIC_EXAMPLES
+from agents.vllm_client import VLLMCouncilClient
 
-# ── Phase 4 — Advanced AI ─────────────────────────────────────────────────────
+#  Phase 4 -- Advanced AI 
 from agents.diagnostic_planner import (
     build_planner_prompt, parse_plan_output
 )
@@ -53,9 +55,9 @@ from agents.counterfactual_reasoner import (
 
 
 
-# ─────────────────────────────────────────
+# 
 # HELPERS
-# ─────────────────────────────────────────
+# 
 
 def _to_str(val) -> str:
     if isinstance(val, str):   return val
@@ -70,11 +72,27 @@ def _safe_float(val, default: float = 0.0) -> float:
 def _safe_list(val) -> list:
     return val if isinstance(val, list) else []
 
+def _sanitize_medical_string(s: str) -> str:
+    """Filters out raw data keys (one-word labels) and normalizes medical text."""
+    if not s or not isinstance(s, str): return ""
+    s = s.strip()
+    # Skip raw data keys (e.g. "age", "gender", "occupation")
+    if " " not in s and len(s) < 15:
+        # Check for common medical terms that ARE one word
+        if s.lower() not in ["diabetes", "hypertension", "smoking", "pregnancy", "asthma"]:
+            return ""
+    # Remove technical prefixes
+    s = s.replace("lab_reports -- ", "").replace("lab_reports", "Lab reports")
+    # Title case for single phrases
+    if len(s.split()) < 4:
+        s = s.capitalize()
+    return s
 
-# ─────────────────────────────────────────
-# PHASE 1.1 — JSON SCHEMA FOR GRAMMAR-CONSTRAINED GENERATION
+
+# 
+# PHASE 1.1 -- JSON SCHEMA FOR GRAMMAR-CONSTRAINED GENERATION
 # Prevents the model from physically outputting <placeholder> tokens
-# ─────────────────────────────────────────
+# 
 
 CONDITION_JSON_SCHEMA = {
     "type": "object",
@@ -106,9 +124,9 @@ CONDITION_JSON_SCHEMA = {
 }
 
 
-# ─────────────────────────────────────────
-# PHASE 1.2 — PLACEHOLDER SANITIZER
-# ─────────────────────────────────────────
+# 
+# PHASE 1.2 -- PLACEHOLDER SANITIZER
+# 
 
 _PLACEHOLDER_RE = re.compile(r"<[^>]{1,50}>", re.IGNORECASE)
 _PLACEHOLDER_EXACT = {
@@ -165,29 +183,50 @@ class OutputValidator:
             if self.has_placeholder(reasoning):
                 return False, f"Placeholder reasoning: '{reasoning[:60]}'"
         if self.probabilities_flat(conditions):
-            return False, "Flat probabilities — template defaults"
+            return False, "Flat probabilities -- template defaults"
         return True, "OK"
 
 
-# ─────────────────────────────────────────
+# 
 # COUNCIL MEMBERS
-# ─────────────────────────────────────────
+# 
 
-# ── Curezy Council Brand Names ────────────────────────────────────────────────
+#  Curezy Council Brand Names 
 # AURIX  = most powerful model  (Primary Diagnostician,  weight 1.5)
 # AURA   = main balanced model  (Evidence Validator,     weight 1.4)
 # AURIS  = fast lightweight     (Devil's Advocate,       weight 1.2)
 # AURANET = the full council system
 COUNCIL = [
-    {"name":"Curezy AURIX", "model":"alibayram/medgemma:4b",            "specialty":"General Medicine",      "role":"Primary Diagnostician", "weight":1.5, "tokens":2048},
-    {"name":"Curezy AURA",  "model":"koesn/llama3-openbiollm-8b:latest","specialty":"Biomedical Research",    "role":"Evidence Validator",    "weight":1.4, "tokens":2048},
-    {"name":"Curezy AURIS", "model":"mistral:7b",                        "specialty":"Differential Diagnosis","role":"Devil's Advocate",      "weight":1.2, "tokens":1536},
+    {
+        "name": "Curezy AURIX",
+        "model": "alibayram/medgemma:4b",
+        "specialty": "Primary Clinician",
+        "role": "Lead Diagnostician",
+        "weight": 1.5,
+        "tokens": 2048
+    },
+    {
+        "name": "Curezy AURA",
+        "model": "llama3.2:3b",
+        "specialty": "Clinical Researcher",
+        "role": "Speed Validator",
+        "weight": 1.3, # Slightly lower weight for smaller model
+        "tokens": 2048
+    },
+    {
+        "name": "Curezy AURIS",
+        "model": "gemma2:2b",
+        "specialty": "Medical Analyst",
+        "role": "Fast Triage",
+        "weight": 1.1,
+        "tokens": 1536
+    },
 ]
 
 
-# ─────────────────────────────────────────
+# 
 # OUTPUT MODELS
-# ─────────────────────────────────────────
+# 
 
 class ClinicalCondition(BaseModel):
     condition:   str
@@ -199,28 +238,32 @@ class ClinicalCondition(BaseModel):
 class FinalClinicalOutput(BaseModel):
     patient_id:               str
     top_3_conditions:         List[ClinicalCondition]
-    treatment_goals:          List[str]
+    treatment_goals:          List[str] = []
     consensus_confidence:     float
     agents_agreed:            bool
-    council_votes:            Optional[dict]
-    disagreement_details:     Optional[str]
-    missing_data_suggestions: List[str]
-    safety_flags:             List[str]
+    council_votes:            Optional[dict] = None
+    disagreement_details:     Optional[str] = None
+    missing_data_suggestions: List[str] = []
+    safety_flags:             List[str] = []
     doctor_review_required:   bool
     reasoning_summary:        str
-    execution_time_seconds:   Optional[float]
+    execution_time_seconds:   Optional[float] = None
+    latency_breakdown:        Optional[dict] = None
+    diagnostic_plan:          List[str] = []
+    counterfactuals:          List[str] = []
 
 
-# ─────────────────────────────────────────
-# PHASE 1.1+1.2 — LLM CLIENT (Grammar-Constrained)
-# ─────────────────────────────────────────
+
+# 
+# PHASE 1.1+1.2 -- LLM CLIENT (Grammar-Constrained)
+# 
 
 class CouncilLLMClient:
     """Low-level LLM client that routes all inference to the configured Ollama host.
 
     The target host is read from the ``OLLAMA_HOST`` environment variable at
     module import time (see ``_OLLAMA_HOST`` above).  This guarantees that every
-    call — diagnosis, debate, moderator, critic, evidence refinement — hits the
+    call -- diagnosis, debate, moderator, critic, evidence refinement -- hits the
     GCP-deployed Ollama instance rather than localhost.
     """
 
@@ -237,14 +280,19 @@ class CouncilLLMClient:
                 "repeat_penalty": 1.1,
                 "stop": ["USER:", "Human:", "Assistant:", "=== WORKED EXAMPLE"]
             }
-            kwargs = {"model": model, "prompt": prompt, "options": options}
+            kwargs = {
+                "model":      model,
+                "prompt":     prompt,
+                "options":    options,
+                "keep_alive": -1  # FORCE VRAM RESIDENCY PERMANENTLY
+            }
 
             # Phase 1.1: Use full JSON Schema for grammar-constrained output
             if use_json_schema:
                 kwargs["format"] = CONDITION_JSON_SCHEMA
             # else: plain text for CoT prompts (we parse JSON from the output)
 
-            print(f"[Council] → {model} @ {_OLLAMA_HOST}")
+            print(f"[Council] -> {model} @ {_OLLAMA_HOST}")
             response = await client.generate(**kwargs)
             return response.get("response", "{}")
         except Exception as exc:
@@ -290,17 +338,17 @@ if _USE_VLLM:
     CouncilLLMClient = VLLMCouncilClient
 
 
-# ─────────────────────────────────────────
-# PHASE 1.2 — PROMPT BUILDER (No <> Templates, Only Few-Shot)
-# ─────────────────────────────────────────
+# 
+# PHASE 1.2 -- PROMPT BUILDER (No <> Templates, Only Few-Shot)
+# 
 
 class PromptBuilder:
 
-    # Worked examples — NO schema template shown, model infers format
+    # Worked examples -- NO schema template shown, model infers format
     _FEW_SHOT = """
 === WORKED EXAMPLE A ===
 Patient SOAP:
-S: Chief complaint: fever 39.5°C, neck stiffness, severe headache, photophobia | Duration: acute (<24h) | Onset: SUDDEN
+S: Chief complaint: fever 39.5C, neck stiffness, severe headache, photophobia | Duration: acute (<24h) | Onset: SUDDEN
 O: Age 28, Female. Labs: none provided.
 C: PMH: none. Meds: none. Risk factors: none.
 
@@ -309,7 +357,7 @@ Step 1: Fever + neck stiffness + headache = classic meningeal irritation triad. 
 Step 2: Sudden onset <24h = bacterial time course (viral is typically slower). Young adult with no prior illness.
 Step 3: Viral Meningitis remains a differential but bacterial probability is higher given the acuity.
 
-{"doctor":"Curezy AURIX","specialty":"General Medicine","conditions":[{"condition":"Bacterial Meningitis","probability":65,"confidence":78,"evidence":["Meningeal triad: fever 39.5°C + neck stiffness + photophobia","Sudden onset <24h consistent with bacterial time course","Young female without prior immunocompromise"],"reasoning":"Classic bacterial meningitis triad with acute onset. LP + IV antibiotics within 1 hour."},{"condition":"Viral Meningitis","probability":25,"confidence":55,"evidence":["Fever + headache + photophobia also seen in viral","Absence of petechial rash (slightly against bacterial)"],"reasoning":"Cannot exclude viral without CSF analysis. Typically less acute onset."},{"condition":"Subarachnoid Hemorrhage","probability":10,"confidence":40,"evidence":["Sudden severe headache warrants CT before LP","Photophobia can occur in SAH"],"reasoning":"Must rule out with CT before LP given presentation severity."}],"missing_data":["Lumbar puncture (CSF analysis)","CT head (before LP)","Blood cultures","Kernig/Brudzinski sign exam"],"urgent_flags":["EMERGENCY: LP + IV broad-spectrum antibiotics within 1 hour"],"treatment_goals":["Immediate IV broad-spectrum antibiotics","Manage intracranial pressure"],"reasoning_summary":"Acute meningeal triad in young adult. Bacterial meningitis is primary until LP excludes it. Treat immediately."}
+{"doctor":"Curezy AURIX","specialty":"General Medicine","conditions":[{"condition":"Bacterial Meningitis","probability":65,"confidence":78,"evidence":["Meningeal triad: fever 39.5C + neck stiffness + photophobia","Sudden onset <24h consistent with bacterial time course","Young female without prior immunocompromise"],"reasoning":"Classic bacterial meningitis triad with acute onset. LP + IV antibiotics within 1 hour."},{"condition":"Viral Meningitis","probability":25,"confidence":55,"evidence":["Fever + headache + photophobia also seen in viral","Absence of petechial rash (slightly against bacterial)"],"reasoning":"Cannot exclude viral without CSF analysis. Typically less acute onset."},{"condition":"Subarachnoid Hemorrhage","probability":10,"confidence":40,"evidence":["Sudden severe headache warrants CT before LP","Photophobia can occur in SAH"],"reasoning":"Must rule out with CT before LP given presentation severity."}],"missing_data":["Lumbar puncture (CSF analysis)","CT head (before LP)","Blood cultures","Kernig/Brudzinski sign exam"],"urgent_flags":["EMERGENCY: LP + IV broad-spectrum antibiotics within 1 hour"],"treatment_goals":["Immediate IV broad-spectrum antibiotics","Manage intracranial pressure"],"reasoning_summary":"Acute meningeal triad in young adult. Bacterial meningitis is primary until LP excludes it. Treat immediately."}
 
 === WORKED EXAMPLE B ===
 Patient SOAP:
@@ -320,9 +368,9 @@ C: PMH: hypertension. Meds: amlodipine. Risk factors: hypertension, male.
 Curezy AURIS's clinical reasoning:
 Step 1: Chest pain + left arm radiation + diaphoresis = ACS triad. Duration 30 min exceeds typical angina (<10 min).
 Step 2: Male 55yo hypertensive = high Framingham cardiac risk. Amlodipine use confirms pre-existing cardiac workup.
-Step 3: Must distinguish STEMI from NSTEMI — ECG critical. Aortic dissection must be excluded.
+Step 3: Must distinguish STEMI from NSTEMI -- ECG critical. Aortic dissection must be excluded.
 
-{"doctor":"Curezy AURIS","specialty":"Differential Diagnosis","conditions":[{"condition":"Acute Myocardial Infarction","probability":72,"confidence":82,"evidence":["Left arm radiation — classic ACS referred pain pattern","Diaphoresis (sympathetic activation) — ACS marker","Duration >30 min beyond typical angina threshold","Male 55yo hypertensive — high Framingham cardiac risk"],"reasoning":"Classic STEMI/NSTEMI presentation. Immediate 12-lead ECG + cath lab activation."},{"condition":"Unstable Angina","probability":20,"confidence":60,"evidence":["Chest pain pattern consistent","No ST elevation data available to confirm MI"],"reasoning":"Cannot distinguish from NSTEMI without troponin. Treat as ACS protocol."},{"condition":"Aortic Dissection","probability":8,"confidence":40,"evidence":["Acute severe chest pain","Hypertension — dissection risk factor"],"reasoning":"Must exclude with bilateral BP measurement and CT-angiogram if dissection suspected."}],"missing_data":["12-lead ECG urgent","Troponin I/T serials","Bilateral BP measurement","CXR"],"urgent_flags":["EMERGENCY: Activate cath lab — PCI within 90 minutes"],"treatment_goals":["Reperfusion","Manage pain","Lower blood pressure"],"reasoning_summary":"High-probability ACS in hypertensive male. Immediate ECG, cath lab activation, aspirin 300mg."}
+{"doctor":"Curezy AURIS","specialty":"Differential Diagnosis","conditions":[{"condition":"Acute Myocardial Infarction","probability":72,"confidence":82,"evidence":["Left arm radiation -- classic ACS referred pain pattern","Diaphoresis (sympathetic activation) -- ACS marker","Duration >30 min beyond typical angina threshold","Male 55yo hypertensive -- high Framingham cardiac risk"],"reasoning":"Classic STEMI/NSTEMI presentation. Immediate 12-lead ECG + cath lab activation."},{"condition":"Unstable Angina","probability":20,"confidence":60,"evidence":["Chest pain pattern consistent","No ST elevation data available to confirm MI"],"reasoning":"Cannot distinguish from NSTEMI without troponin. Treat as ACS protocol."},{"condition":"Aortic Dissection","probability":8,"confidence":40,"evidence":["Acute severe chest pain","Hypertension -- dissection risk factor"],"reasoning":"Must exclude with bilateral BP measurement and CT-angiogram if dissection suspected."}],"missing_data":["12-lead ECG urgent","Troponin I/T serials","Bilateral BP measurement","CXR"],"urgent_flags":["EMERGENCY: Activate cath lab -- PCI within 90 minutes"],"treatment_goals":["Reperfusion","Manage pain","Lower blood pressure"],"reasoning_summary":"High-probability ACS in hypertensive male. Immediate ECG, cath lab activation, aspirin 300mg."}
 """
 
     def diagnosis_prompt(self, soap: dict, doctor: dict, raw_payload: Optional[dict] = None) -> str:
@@ -341,13 +389,13 @@ Step 3: Must distinguish STEMI from NSTEMI — ECG critical. Aortic dissection m
         return f"""You are {doctor['name']}, {doctor['specialty']}. Your role: {doctor['role']}.
 You are conducting a formal clinical assessment using the OPQRST/SOCRATES framework.
 
-CRITICAL RULES — Follow these exactly:
+CRITICAL RULES -- Follow these exactly:
 1. Write your reasoning as Step 1, Step 2, Step 3 BEFORE the JSON.
 2. Then output JSON formatted EXACTLY like the examples below.
 3. Condition names must be REAL medical diagnoses (e.g., "Influenza A", "Bacterial Meningitis", "Acute Appendicitis").
 4. Probability values must be different from each other and sum to approximately 100.
 5. Evidence items must cite SPECIFIC findings from the OPQRST data (Onset, Provocation, etc.).
-6. Do NOT copy placeholders or generic terms — write real clinical language.
+6. Do NOT copy placeholders or generic terms -- write real clinical language.
 7. Strictly respect the structured patient data provided below.
 8. Under 'treatment_goals', output an array of strings representing the desired pharmacological or procedural goals to match against external medicine databases (e.g. ["Broad-spectrum antibiotics", "Fever reduction", "Pain management"]).
 
@@ -365,7 +413,7 @@ Red Flags to Consider: {rf_str}
 Now write your Step 1 / Step 2 / Step 3 reasoning, then your JSON (doctor name: "{doctor['name']}", specialty: "{doctor['specialty']}"):"""
 
     def debate_prompt(self, soap: dict, doctor: dict, all_outputs: list) -> str:
-        """Phase 2 adversarial debate — uses SOAP note for context."""
+        """Phase 2 adversarial debate -- uses SOAP note for context."""
         council_summary = ""
         my_top, majority_condition = "Unknown", "Unknown"
         top_conditions = []
@@ -374,7 +422,7 @@ Now write your Step 1 / Step 2 / Step 3 reasoning, then your JSON (doctor name: 
             if o.get("conditions"):
                 top = o["conditions"][0].get("condition","Unknown")
                 top_conditions.append(top)
-                council_summary += f"\n{o['doctor']}: {top} — {o.get('reasoning_summary','')[:120]}"
+                council_summary += f"\n{o['doctor']}: {top} -- {o.get('reasoning_summary','')[:120]}"
                 if o.get("doctor") == doctor["name"]:
                     my_top = top
 
@@ -392,7 +440,7 @@ Your diagnosis: {my_top} | Council majority: {majority_condition}
 Answer all three:
 1. CHALLENGE: One specific clinical reason {majority_condition} might be WRONG for this patient.
 2. SUPPORT: One piece of patient evidence that DOES support {majority_condition}.
-3. FINAL: Your updated diagnosis and confidence (50–95%).
+3. FINAL: Your updated diagnosis and confidence (50-95%).
 
 JSON only:
 {{"doctor":"{doctor['name']}","agrees_with_majority":true,"challenge_reason":"<specific_reason>","support_reason":"<specific_evidence>","updated_top_condition":"{my_top}","confidence_after_debate":75,"updated_conditions":[],"additional_insights":""}}"""
@@ -414,15 +462,15 @@ Write a 2-sentence clinical synthesis. JSON only:
         return build_evidence_prompt(condition, soap["soap_string"])
 
 
-# ─────────────────────────────────────────
-# PHASE 2.5 — SPECIFICITY SCORER
-# ─────────────────────────────────────────
+# 
+# PHASE 2.5 -- SPECIFICITY SCORER
+# 
 
 def compute_specificity_score(condition_name: str, patient_symptoms: List[str]) -> float:
     """
     Phase 2.5: Compute confidence from how many defining symptoms of the
     diagnosed condition are present in the patient data.
-    Returns a calibration multiplier (0.7–1.3).
+    Returns a calibration multiplier (0.7-1.3).
     """
     from knowledge.symptom_map import SYMPTOM_DIFFERENTIAL_MAP
     condition_lower = condition_name.lower()
@@ -439,12 +487,12 @@ def compute_specificity_score(condition_name: str, patient_symptoms: List[str]) 
                 elif score >= 0.3: return 1.0
                 else:              return 0.8
 
-    return 1.0  # Unknown condition — neutral multiplier
+    return 1.0  # Unknown condition -- neutral multiplier
 
 
-# ─────────────────────────────────────────
+# 
 # HALLUCINATION DETECTOR
-# ─────────────────────────────────────────
+# 
 
 class HallucinationDetector:
     def detect(self, council_outputs: List[dict]) -> Dict:
@@ -459,13 +507,13 @@ class HallucinationDetector:
             top = normalize_condition_name(o["conditions"][0].get("condition","")).lower()
             if top != majority and majority_count >= 2:
                 outliers.append({"doctor": o.get("doctor"), "diagnosis": o["conditions"][0].get("condition")})
-                print(f"[Hallucination] ⚠️  {o.get('doctor')} outlier: {o['conditions'][0].get('condition')}")
+                print(f"[Hallucination] [WARN]  {o.get('doctor')} outlier: {o['conditions'][0].get('condition')}")
         return {"outliers": outliers, "majority_condition": majority, "agreement_score": round(majority_count/len(tops), 2)}
 
 
-# ─────────────────────────────────────────
+# 
 # WEIGHTED CONSENSUS ENGINE (Phase 2.5 Calibrated)
-# ─────────────────────────────────────────
+# 
 
 class WeightedConsensusEngine:
 
@@ -498,7 +546,7 @@ class WeightedConsensusEngine:
 
                 valid, reason = validator.validate(conditions)
                 if not valid:
-                    print(f"[Consensus] ⚠️  {doctor['name']} rejected: {reason}")
+                    print(f"[Consensus] [WARN]  {doctor['name']} rejected: {reason}")
                     conditions = conditions[:1]
                     if not conditions: continue
 
@@ -586,14 +634,19 @@ class WeightedConsensusEngine:
             mod_adj = _safe_float(moderator_output.get("consensus_confidence_adjustment",0)) if moderator_output else 0
             avg_conf = min(92.0, max(15.0, raw_conf * calib + mod_adj))
 
-            missing = list({_to_str(x).strip() for o in council_outputs for x in _safe_list(o.get("missing_data",[])) if _to_str(x).strip()})
+            missing_raw = {_to_str(x).strip() for o in council_outputs for x in _safe_list(o.get("missing_data",[])) if _to_str(x).strip()}
+            missing = []
+            for m in missing_raw:
+                sanitized = _sanitize_medical_string(m)
+                if sanitized and sanitized not in missing:
+                    missing.append(sanitized)
             flags: List[str] = list(forced_flags)
             for o in council_outputs:
                 for f in _safe_list(o.get("urgent_flags",[])):
                     s = _to_str(f).strip()
                     if s and s not in flags: flags.append(s)
-            if avg_conf < 50: flags.append("LOW CONFIDENCE — Doctor review strongly recommended")
-            if outlier_doctors: flags.append(f"COUNCIL DISAGREEMENT — {len(outlier_doctors)} outlier(s)")
+            if avg_conf < 50: flags.append("LOW CONFIDENCE -- Doctor review strongly recommended")
+            if outlier_doctors: flags.append(f"COUNCIL DISAGREEMENT -- {len(outlier_doctors)} outlier(s)")
 
             council_votes = {o.get("doctor"): (o["conditions"][0].get("condition","Unknown") if o.get("conditions") else "No output") for o in council_outputs}
 
@@ -614,34 +667,40 @@ class WeightedConsensusEngine:
             )
 
         except Exception as e:
-            print(f"[Consensus] ❌ CRASH: {e}"); traceback.print_exc()
+            print(f"[Consensus] [FAIL] CRASH: {e}"); traceback.print_exc()
             return FinalClinicalOutput(
                 patient_id=patient_id, top_3_conditions=[], consensus_confidence=30.0,
                 agents_agreed=False, council_votes={},
                 disagreement_details=f"Consensus error: {str(e)}",
                 missing_data_suggestions=["Full assessment recommended"],
-                safety_flags=["PARTIAL OUTPUT — Doctor review required"],
+                safety_flags=["PARTIAL OUTPUT -- Doctor review required"],
                 doctor_review_required=True,
                 reasoning_summary=f"Consensus engine error: {str(e)}",
                 execution_time_seconds=round(execution_time,1)
             )
 
 
-# ─────────────────────────────────────────
-# CLINICAL REASONER — MAIN CLASS
-# ─────────────────────────────────────────
+# 
+# CLINICAL REASONER -- MAIN CLASS
+# 
 
 class ClinicalReasoner:
 
     def __init__(self):
-        self.llm       = CouncilLLMClient()
+        use_vllm = os.getenv("USE_VLLM", "false").lower() == "true"
+        if use_vllm:
+            print("[Council] High-speed vLLM engine enabled")
+            self.llm = VLLMCouncilClient()
+        else:
+            self.llm = CouncilLLMClient()
+            
         self.prompts   = PromptBuilder()
         self.detector  = HallucinationDetector()
         self.consensus = WeightedConsensusEngine()
         self.validator = OutputValidator()
         self.rag       = RAGRetriever()
         print(f"[Council] Initialized ({len(COUNCIL)} members):")
-        for d in COUNCIL: print(f"  {d['name']} — {d['model']}")
+        for d in COUNCIL: print(f"  {d['name']} -- {d['model']}")
 
     async def _run_doctor_async(self, doctor: dict, soap: dict, patient_state: dict) -> dict:
         """
@@ -651,6 +710,8 @@ class ClinicalReasoner:
         print(f"[Council] {doctor['name']} analyzing...")
         t0 = time.time()
         prompt = self.prompts.diagnosis_prompt(soap, doctor, raw_payload=patient_state)
+        
+        tracker = patient_state.get("_tracker") # Use shared tracker if provided
         temperatures = [0.1]
 
         for attempt in range(3):
@@ -710,15 +771,19 @@ class ClinicalReasoner:
                 best["_consistency"] = round(majority_count/len(tops), 2)
 
                 elapsed = round(time.time()-t0, 1)
-                print(f"[Council] ✅ {doctor['name']} {elapsed}s — {best['conditions'][0].get('condition','?')} (consistency {majority_count}/{len(tops)})")
+                print(f"[Council] [OK] {doctor['name']} {elapsed}s -- {best['conditions'][0].get('condition','?')} (consistency {majority_count}/{len(tops)})")
+                
+                if tracker:
+                    tracker.record_model(doctor['name'], elapsed, len(prompt), len(str(best)))
+                    
                 return best
 
             except Exception as e:
-                print(f"[Council] ⚠️ {doctor['name']} attempt {attempt+1}: {e}")
+                print(f"[Council] [WARN] {doctor['name']} attempt {attempt+1}: {e}")
                 await asyncio.sleep(1)
 
         elapsed = round(time.time()-t0, 1)
-        print(f"[Council] ❌ {doctor['name']} exhausted retries ({elapsed}s)")
+        print(f"[Council] [FAIL] {doctor['name']} exhausted retries ({elapsed}s)")
         return {
             "doctor": doctor["name"],
             "specialty": doctor["specialty"],
@@ -763,7 +828,7 @@ class ClinicalReasoner:
                         "additional_insights":    str(output.get("additional_insights",""))
                     }
             except Exception as e:
-                print(f"[Council] ⚠️ {doctor['name']} debate attempt {attempt+1}: {e}")
+                print(f"[Council] [WARN] {doctor['name']} debate attempt {attempt+1}: {e}")
             await asyncio.sleep(1)
         return {"doctor":doctor["name"],"agrees_with_majority":True,"updated_conditions":[],"confidence_after_debate":60.0,"updated_top_condition":"","disagreement_reason":"","support_reason":"","additional_insights":""}
 
@@ -775,7 +840,7 @@ class ClinicalReasoner:
             if output and output.get("consensus_narrative"):
                 return output
         except Exception as e:
-            print(f"[Council] ⚠️ Moderator failed: {e}")
+            print(f"[Council] [WARN] Moderator failed: {e}")
         return {}
 
     def _run_doctor(self, doctor, soap, patient_state): return asyncio.run(self._run_doctor_async(doctor, soap, patient_state))
@@ -817,7 +882,7 @@ class ClinicalReasoner:
             reasoning_summary=_to_str(output.get("reasoning_summary",f"Analysis by {doctor['name']}")),
             execution_time_seconds=round(time.time()-start,1))
 
-    # ── Persistence helper ────────────────────────────────────────────────────
+    #  Persistence helper 
     def _persist_outcome(self, result: "FinalClinicalOutput", q_breakdown: dict,
                           forced_conditions: list, extra: dict):
         """Asynchronously persist analysis result to Supabase council_outcomes table."""
@@ -853,17 +918,18 @@ class ClinicalReasoner:
                 "llm_models_used":      [d["model"] for d in COUNCIL],
             }
             client.table("council_outcomes").insert(row).execute()
-            print(f"[Council] 💾 Outcome persisted (Q={q_breakdown.get('q_score','?')} grade={q_breakdown.get('grade','?')})")
+            print(f"[Council]  Outcome persisted (Q={q_breakdown.get('q_score','?')} grade={q_breakdown.get('grade','?')})")
         except Exception as e:
-            print(f"[Council] ⚠️ Persistence skipped: {e}")
+            print(f"[Council] [WARN] Persistence skipped: {e}")
 
-    # ── Phase 1.1: Think-Revise async pass ───────────────────────────────────
+    #  Phase 1.1: Think-Revise async pass 
     async def _run_critic_revision_async(self, council_outputs: list, soap: dict) -> list:
-        """Run critic review + targeted revision for any doctor with low scores."""
+        """Run critic review + targeted revision for any doctor with low scores (in parallel)."""
         revised = list(council_outputs)
-        for i, output in enumerate(council_outputs):
+        
+        async def process_doctor(i, output):
             if not output.get("conditions"):
-                continue
+                return None
             doctor = COUNCIL[i]
             try:
                 critic_prompt = build_critic_prompt(soap["soap_string"], doctor["name"], output)
@@ -871,10 +937,10 @@ class ClinicalReasoner:
                                                             use_json_schema=False, temperature=0.1)
                 critique      = self.llm.parse_json(raw)
                 if not critique:
-                    continue
+                    return None
                 needs_revision, instruction = parse_critique(critique)
                 if needs_revision:
-                    print(f"[Thinker] 🔄 {doctor['name']} needs revision: {instruction[:80]}")
+                    print(f"[Thinker]  {doctor['name']} needs revision: {instruction[:80]}")
                     rev_prompt  = build_revision_prompt(soap["soap_string"], doctor, output, critique)
                     rev_raw     = await self.llm.query_async(rev_prompt, doctor["model"], 1024,
                                                               use_json_schema=True, temperature=0.1)
@@ -885,18 +951,28 @@ class ClinicalReasoner:
                     if new_conds:
                         valid, reason = self.validator.validate(new_conds)
                         if valid:
-                            revised[i] = {**output, "conditions": new_conds,
+                            print(f"[Thinker] [OK] {doctor['name']} revised: {new_conds[0].get('condition','?')}")
+                            return {**output, "conditions": new_conds,
                                           "reasoning_summary": rev_parsed.get("reasoning_summary", output.get("reasoning_summary",""))}
-                            print(f"[Thinker] ✅ {doctor['name']} revised: {new_conds[0].get('condition','?')}")
                         else:
-                            print(f"[Thinker] ⚠️  Revision rejected ({reason}) — keeping original")
+                            print(f"[Thinker] [WARN]  Revision rejected ({reason}) -- keeping original")
                 else:
-                    print(f"[Thinker] ✓ {doctor['name']} passes critic review")
+                    print(f"[Thinker]  {doctor['name']} passes critic review")
             except Exception as e:
-                print(f"[Thinker] ⚠️ {doctor['name']} critic failed: {e}")
+                print(f"[Thinker] [WARN] {doctor['name']} critic failed: {e}")
+            return None
+
+        tasks = [process_doctor(i, output) for i, output in enumerate(council_outputs)]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        for i, res in enumerate(results):
+            if not isinstance(res, Exception) and res is not None:
+                revised[i] = res
+                
         return revised
 
-    # ── Phase 4.2: Diagnostic Planner ────────────────────────────────────────
+
+    #  Phase 4.2: Diagnostic Planner 
     async def _run_diagnostic_plan_async(self, top_condition: str, probability: float, soap: dict) -> tuple:
         try:
             prompt  = build_planner_prompt(top_condition, probability, soap["soap_string"])
@@ -905,10 +981,10 @@ class ClinicalReasoner:
             parsed  = self.llm.parse_json(raw)
             return parse_plan_output(parsed)
         except Exception as e:
-            print(f"[Planner] ⚠️ Failed: {e}")
+            print(f"[Planner] [WARN] Failed: {e}")
             return [], ""
 
-    # ── Phase 4.1: Counterfactual Reasoner ───────────────────────────────────
+    #  Phase 4.1: Counterfactual Reasoner 
     async def _run_counterfactual_async(self, top_condition: str, probability: float, soap: dict) -> list:
         try:
             prompt   = build_counterfactual_prompt(top_condition, probability, soap)
@@ -920,10 +996,10 @@ class ClinicalReasoner:
                 print(f"[Counterfactual] {len(insights)} insights generated")
             return insights
         except Exception as e:
-            print(f"[Counterfactual] ⚠️ Failed: {e}")
+            print(f"[Counterfactual] [WARN] Failed: {e}")
             return []
 
-    # ── Phase 1.4: Confidence Audit ──────────────────────────────────────────
+    #  Phase 1.4: Confidence Audit 
     async def _run_confidence_audit_async(self, conditions: list, confidence: float, soap: dict) -> dict:
         try:
             prompt  = build_audit_prompt(soap["soap_string"], conditions, confidence)
@@ -934,11 +1010,14 @@ class ClinicalReasoner:
                 print(f"[Auditor] Grade: {parsed.get('audit_grade')} | Ind. conf: {parsed.get('independent_confidence','?')}%")
                 return parsed
         except Exception as e:
-            print(f"[Auditor] ⚠️ Failed: {e}")
+            print(f"[Auditor] [WARN] Failed: {e}")
         return {}
 
     async def analyze(self, patient_state: dict, progress_callback=None) -> FinalClinicalOutput:
         pid   = patient_state.get("patient_id","unknown")
+        tracker = LatencyTracker()
+        patient_state["_tracker"] = tracker
+        
         start = time.time()
 
         async def _emit(event: str, data: dict = None):
@@ -953,10 +1032,12 @@ class ClinicalReasoner:
 
         # Phase 2.1: Convert to SOAP note
         soap  = convert_to_soap(patient_state)
+        tracker.mark("SOAP Conversion")
         patient_symptoms = soap["symptoms"]
 
         # Phase 2.2: Run hard clinical rules BEFORE any LLM call
         forced_conditions, forced_flags = run_clinical_rules(patient_state)
+        tracker.mark("Clinical Rules")
 
         # Phase 4: Enforce emergency lock-in for LLM context
         if forced_conditions:
@@ -979,12 +1060,13 @@ class ClinicalReasoner:
         if self.rag and self.rag.enabled:
             rag_context = self.rag.retrieve_guidelines(patient_symptoms)
             if rag_context:
-                print(f"[Council] 📚 Injected PubMed clinical guidelines")
+                print(f"[Council]  Injected PubMed clinical guidelines")
                 soap["soap_string"] += f"\n\n{rag_context}\nCRITICAL INSTRUCTION: Use the guidelines above to inform your reasoning."
+                tracker.mark("RAG Injection")
 
         try:
-            # ── ROUND 1: Self-Consistency Parallel Diagnosis ──────────────────
-            print(f"\n[Council] ROUND 1 — {len(COUNCIL)} models (self-consistency + grammar constraints)")
+            #  ROUND 1: Self-Consistency Parallel Diagnosis 
+            print(f"\n[Council] ROUND 1 -- {len(COUNCIL)} models (self-consistency + grammar constraints)")
             await _emit("round_started", {"round": 1, "name": "Initial Diagnosis", "models": len(COUNCIL)})
 
             async def run_round_1():
@@ -994,19 +1076,21 @@ class ClinicalReasoner:
                 for idx, r in enumerate(results):
                     doc = COUNCIL[idx]
                     if isinstance(r, Exception):
-                        print(f"[Council] ❌ {doc['name']} failed: {r}")
+                        print(f"[Council] [FAIL] {doc['name']} failed: {r}")
                         outputs.append({"doctor":doc["name"],"specialty":doc["specialty"],"conditions":[],"missing_data":[],"urgent_flags":[],"treatment_goals":[],"reasoning_summary":str(r)})
                     else:
                         outputs.append(r)
                 return outputs
 
             council_outputs = await run_round_1()
+            r1_time = round(time.time()-start, 1)
+            tracker.mark("Round 1: Parallel Diagnosis")
             valid_count = len([o for o in council_outputs if o.get("conditions")])
-            print(f"[Council] Round 1: {valid_count}/{len(COUNCIL)} valid | {round(time.time()-start,1)}s")
+            print(f"[Council] Round 1: {valid_count}/{len(COUNCIL)} valid | {r1_time}s total")
             await _emit("round_completed", {"round": 1, "valid": valid_count, "total": len(COUNCIL)})
 
-            # ── Phase 2.4: Refine evidence for top conditions ─────────────────
-            print(f"\n[Council] ROUND 1b — Evidence refinement")
+            #  Phase 2.4: Refine evidence for top conditions 
+            print(f"\n[Council] ROUND 1b -- Evidence refinement")
             async def run_evidence_refinement():
                 tasks = []
                 for i, o in enumerate(council_outputs):
@@ -1020,36 +1104,41 @@ class ClinicalReasoner:
                 return council_outputs
 
             council_outputs = await run_evidence_refinement()
+            ref_time = round(time.time()-start, 1)
+            tracker.mark("Round 1b: Evidence Refinement")
+            print(f"[Council] Evidence Refined | {ref_time}s total")
 
             if valid_count == 0:
                 # If all failed but we have forced conditions from rules, return those
                 if forced_conditions:
                     final = [ClinicalCondition(**{k:v for k,v in fc.items() if k in ClinicalCondition.__fields__}) for fc in forced_conditions[:3]]
                     return FinalClinicalOutput(patient_id=pid,top_3_conditions=final,consensus_confidence=70.0,
-                        agents_agreed=True,council_votes={},disagreement_details="LLM models failed — clinical rules applied",
+                        agents_agreed=True,council_votes={},disagreement_details="LLM models failed -- clinical rules applied",
                         missing_data_suggestions=["Full clinical assessment required"],safety_flags=forced_flags,
                         doctor_review_required=True,reasoning_summary="Clinical decision rules applied. LLM council unavailable.",
                         execution_time_seconds=round(time.time()-start,1))
                 return FinalClinicalOutput(patient_id=pid,top_3_conditions=[],consensus_confidence=0,
                     agents_agreed=False,council_votes={},disagreement_details="All models failed",
                     missing_data_suggestions=["Full assessment required"],
-                    safety_flags=["SYSTEM ERROR — Consult a doctor"],doctor_review_required=True,
+                    safety_flags=["SYSTEM ERROR -- Consult a doctor"],doctor_review_required=True,
                     reasoning_summary="All council members failed.",execution_time_seconds=round(time.time()-start,1))
 
-            # ── ROUND 1.5 (NEW): Think-Revise Metacognitive Critic (Phase 1.1) ─
-            print(f"\n[Council] ROUND 1.5 — Think-Revise metacognitive critic")
+            #  ROUND 1.5 (NEW): Think-Revise Metacognitive Critic (Phase 1.1) 
+            print(f"\n[Council] ROUND 1.5 -- Think-Revise metacognitive critic")
             async def run_critic_revision(): return await self._run_critic_revision_async(council_outputs, soap)
             council_outputs = await run_critic_revision()
+            tracker.mark("Round 1.5: Think-Revise Critic")
 
-            # ── ROUND 2: Hallucination Detection (ICD-10 normalized) ─────────
-            print(f"\n[Council] ROUND 2 — Hallucination detection + ICD-10 normalization")
+            #  ROUND 2: Hallucination Detection (ICD-10 normalized) 
+            print(f"\n[Council] ROUND 2 -- Hallucination detection + ICD-10 normalization")
             await _emit("round_started", {"round": 2, "name": "Hallucination Detection"})
             h_report = self.detector.detect(council_outputs)
+            tracker.mark("Round 2: Hallucination Detection")
             print(f"[Council] Agreement: {h_report['agreement_score']*100:.0f}% | Majority: {h_report.get('majority_condition','?')}")
             await _emit("round_completed", {"round": 2, "agreement": h_report['agreement_score']})
 
-            # ── ROUND 2.5 (NEW): Differential Pruning (Phase 1.3) ────────────
-            print(f"\n[Council] ROUND 2.5 — Differential pruning (negative symptom elimination)")
+            #  ROUND 2.5 (NEW): Differential Pruning (Phase 1.3) 
+            print(f"\n[Council] ROUND 2.5 -- Differential pruning (negative symptom elimination)")
             for i, output in enumerate(council_outputs):
                 if output.get("conditions"):
                     original_conds = list(output["conditions"])
@@ -1058,42 +1147,46 @@ class ClinicalReasoner:
                     if summary != "No pruning applied":
                         print(f"[Pruner] {COUNCIL[i]['name']}: {summary}")
                     council_outputs[i]["conditions"] = pruned_conds
+            tracker.mark("Round 2.5: Differential Pruning")
 
-            # ── ROUND 3: Adversarial Debate ───────────────────────────────────
-            print(f"\n[Council] ROUND 3 — Adversarial debate")
+            #  ROUND 3: Adversarial Debate 
+            print(f"\n[Council] ROUND 3 -- Adversarial debate")
             await _emit("round_started", {"round": 3, "name": "Council Debate"})
             async def run_round_3():
                 tasks   = [self._run_debate_async(d, soap, council_outputs) for d in COUNCIL]
                 results = await asyncio.gather(*tasks, return_exceptions=True)
                 return [r if not isinstance(r,Exception) else {"doctor":COUNCIL[i]["name"],"agrees_with_majority":True,"updated_conditions":[],"confidence_after_debate":60} for i,r in enumerate(results)]
             debate_outputs = await run_round_3()
+            tracker.mark("Round 3: Adversarial Debate")
             await _emit("round_completed", {"round": 3, "name": "Council Debate"})
 
-            # ── ROUND 3b: Moderator ───────────────────────────────────────────
-            print(f"\n[Council] ROUND 3b — Moderator synthesis")
+            #  ROUND 3b: Moderator 
+            print(f"\n[Council] ROUND 3b -- Moderator synthesis")
             symptom_str = ", ".join(patient_symptoms) or "unspecified"
             async def run_moderator(): return await self._run_moderator_async(debate_outputs, symptom_str)
             moderator_output = await run_moderator()
+            tracker.mark("Round 3b: Moderator Synthesis")
 
-            # ── ROUND 4: Calibrated Bayesian Consensus ────────────────────────
-            print(f"\n[Council] ROUND 4 — Calibrated Bayesian consensus + clinical rules merge")
+            #  ROUND 4: Calibrated Bayesian Consensus 
+            print(f"\n[Council] ROUND 4 -- Calibrated Bayesian consensus + clinical rules merge")
             await _emit("round_started", {"round": 4, "name": "Consensus Engine"})
             total  = round(time.time()-start, 1)
             result = self.consensus.build(
-                council_outputs, debate_outputs, h_report, pid, total,
                 patient_symptoms=patient_symptoms, moderator_output=moderator_output,
                 forced_conditions=forced_conditions, forced_flags=forced_flags
             )
+            tracker.mark("Round 4: Bayesian Consensus")
             await _emit("round_completed", {"round": 4, "confidence": result.consensus_confidence})
 
-            # ── ROUND 4.5 (NEW): Confidence Audit (Phase 1.4) ────────────────
-            print(f"\n[Council] ROUND 4.5 — Confidence audit + sanity check")
+            #  ROUND 4.5 (NEW): Confidence Audit (Phase 1.4) 
+            print(f"\n[Council] ROUND 4.5 -- Confidence audit + sanity check")
             async def run_audit():
                 return await self._run_confidence_audit_async(
                     [c.dict() for c in result.top_3_conditions],
                     result.consensus_confidence, soap
                 )
             audit_result = await run_audit()
+            tracker.mark("Round 4.5: Confidence Audit")
             if audit_result:
                 audit_parsed    = parse_audit_result(audit_result, result.missing_data_suggestions)
                 blended_conf    = confidence_adjustment(result.consensus_confidence, audit_parsed["independent_confidence"])
@@ -1111,12 +1204,12 @@ class ClinicalReasoner:
                     execution_time_seconds=result.execution_time_seconds,
                 )
 
-            # ── ROUND 5 (NEW): Diagnostic Plan + Counterfactuals (Phase 4) ───
+            #  ROUND 5 (NEW): Diagnostic Plan + Counterfactuals (Phase 4) 
             diagnostic_plan = []; immediate_action = ""; counterfactuals = []
             if result.top_3_conditions:
                 top_cond = result.top_3_conditions[0].condition
                 top_prob = result.top_3_conditions[0].probability
-                print(f"\n[Council] ROUND 5 — Diagnostic plan + counterfactuals for: {top_cond}")
+                print(f"\n[Council] ROUND 5 -- Diagnostic plan + counterfactuals for: {top_cond}")
                 async def run_plan_cf():
                     plan_task = self._run_diagnostic_plan_async(top_cond, top_prob, soap)
                     cf_task   = self._run_counterfactual_async(top_cond, top_prob, soap)
@@ -1124,14 +1217,16 @@ class ClinicalReasoner:
                 plan_result, cf_result = await run_plan_cf()
                 if not isinstance(plan_result, Exception): diagnostic_plan, immediate_action = plan_result
                 if not isinstance(cf_result, Exception):   counterfactuals = cf_result
+                tracker.mark("Round 5: Plan & Counterfactuals")
 
-            # ── ROUND 6 (NEW): Q-Score + Supabase Persistence (Phase 2) ──────
-            print(f"\n[Council] ROUND 6 — Q-score + outcome persistence")
+            #  ROUND 6 (NEW): Q-Score + Supabase Persistence (Phase 2) 
+            print(f"\n[Council] ROUND 6 -- Q-score + outcome persistence")
             q_output    = {"top_3_conditions":[c.dict() for c in result.top_3_conditions],
                            "consensus_confidence":result.consensus_confidence,"agents_agreed":result.agents_agreed}
             q_breakdown = compute_q_score(q_output, forced_conditions)
             print(f"[Council] Q-Score: {q_breakdown['q_score']} (Grade {q_breakdown['grade']})")
             self._persist_outcome(result, q_breakdown, forced_conditions, {})
+            tracker.mark("Round 6: Q-Score & Persistence")
 
             # Attach extended fields for API consumers
             result.__dict__["diagnostic_plan"]  = diagnostic_plan
@@ -1139,10 +1234,14 @@ class ClinicalReasoner:
             result.__dict__["counterfactuals"]  = counterfactuals
             result.__dict__["q_score"]          = q_breakdown["q_score"]
             result.__dict__["q_grade"]          = q_breakdown["grade"]
+            
+            # Phase 6: Finalize Latency Report
+            result.latency_breakdown = tracker.get_breakdown()
+            tracker.log_summary()
 
             total_final = round(time.time()-start, 1)
             print(f"\n[Council] {'='*40}")
-            print(f"[Council] ✅ Complete {total_final}s | Conf: {result.consensus_confidence}% | Q: {q_breakdown['q_score']} ({q_breakdown['grade']}) | Agreed: {result.agents_agreed}")
+            print(f"[Council] [OK] Complete {total_final}s | Conf: {result.consensus_confidence}% | Q: {q_breakdown['q_score']} ({q_breakdown['grade']}) | Agreed: {result.agents_agreed}")
             if result.top_3_conditions: print(f"[Council] Top: {result.top_3_conditions[0].condition}")
             if diagnostic_plan: print(f"[Council] Plan: {len(diagnostic_plan)} steps | Action: {immediate_action[:60]}")
             if counterfactuals: print(f"[Council] Counterfactuals: {len(counterfactuals)}")
@@ -1152,12 +1251,12 @@ class ClinicalReasoner:
             return result
 
         except Exception as e:
-            print(f"[Council] ❌ FATAL: {e}"); traceback.print_exc()
+            print(f"[Council] [FAIL] FATAL: {e}"); traceback.print_exc()
             return FinalClinicalOutput(
                 patient_id=pid,top_3_conditions=[],consensus_confidence=0,agents_agreed=False,
                 council_votes={},disagreement_details=str(e),
                 missing_data_suggestions=["Manual assessment required"],
-                safety_flags=["SYSTEM ERROR — Consult a doctor directly"],
+                safety_flags=["SYSTEM ERROR -- Consult a doctor directly"],
                 doctor_review_required=True,
                 reasoning_summary=f"System error: {str(e)}.",
                 execution_time_seconds=round(time.time()-start,1)

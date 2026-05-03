@@ -56,55 +56,15 @@ EXTERNAL_IP=$(curl -sf -H "Metadata-Flavor: Google" \
 
 echo "[INFO] External IP: ${EXTERNAL_IP}"
 
-# 6. Update Cloud Run service OLLAMA_HOST
-gcloud run services update ai-service \
-  --region=us-central1 \
-  --update-env-vars="OLLAMA_HOST=http://${EXTERNAL_IP}:11434" \
-  --quiet
+# 6. Update Cloud Run service OLLAMA_HOST (if applicable)
+# Note: Ensure you have gcloud authenticated on the VM
+if command -v gcloud &> /dev/null; then
+  echo "[INFO] Updating Cloud Run OLLAMA_HOST..."
+  gcloud run services update ai-service \
+    --region=us-central1 \
+    --update-env-vars="OLLAMA_HOST=http://${EXTERNAL_IP}:11434" \
+    --quiet || echo "[WARN] Cloud Run update failed (check auth)"
+fi
 
-echo "[OK] Cloud Run updated: OLLAMA_HOST=http://${EXTERNAL_IP}:11434"
-echo "=== Startup complete — Council ready @ 62 tok/s ==="
-
-
-set -e
-exec >> /var/log/curezy-startup.log 2>&1
-
-echo "=== Curezy startup: $(date) ==="
-
-# 1. Start Ollama
-sudo systemctl start ollama
-sudo systemctl enable ollama
-echo "[OK] Ollama service started"
-
-# 2. Wait until Ollama API is responding
-for i in {1..20}; do
-  if curl -sf http://localhost:11434 > /dev/null; then
-    echo "[OK] Ollama API ready after ${i}s"
-    break
-  fi
-  sleep 3
-done
-
-# Pre-warm models into VRAM (in background)
-(
-  echo "[INFO] Pre-warming models..."
-  curl -s -X POST http://localhost:11434/api/generate -d '{"model": "alibayram/medgemma:4b", "keep_alive": -1}' > /dev/null
-  curl -s -X POST http://localhost:11434/api/generate -d '{"model": "koesn/llama3-openbiollm-8b:latest", "keep_alive": -1}' > /dev/null
-  curl -s -X POST http://localhost:11434/api/generate -d '{"model": "mistral:7b", "keep_alive": -1}' > /dev/null
-  echo "[OK] Models pre-warmed"
-) &
-
-# 3. Get external IP from GCP metadata server
-EXTERNAL_IP=$(curl -sf -H "Metadata-Flavor: Google" \
-  "http://metadata.google.internal/computeMetadata/v1/instance/network-interfaces/0/access-configs/0/external-ip")
-
-echo "[INFO] External IP: ${EXTERNAL_IP}"
-
-# 4. Update Cloud Run service OLLAMA_HOST
-gcloud run services update ai-service \
-  --region=us-central1 \
-  --update-env-vars="OLLAMA_HOST=http://${EXTERNAL_IP}:11434" \
-  --quiet
-
-echo "[OK] Cloud Run updated: OLLAMA_HOST=http://${EXTERNAL_IP}:11434"
-echo "=== Startup complete ==="
+echo "[OK] Startup complete — Council ready @ 62 tok/s"
+echo "=== Curezy startup finished: $(date) ==="

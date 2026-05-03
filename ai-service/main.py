@@ -41,18 +41,18 @@ class EndpointFilter(logging.Filter):
 
 logging.getLogger("uvicorn.access").addFilter(EndpointFilter())
 
-# ── Init app
+#  Init app
 app = FastAPI(
     title="Curezy AI Service",
     description="Doctor-supervised clinical intelligence API",
     version="1.0.0"
 )
 
-# ── Rate limiter
+#  Rate limiter
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
 
-# ── CORS
+#  CORS
 # In production, set ALLOWED_ORIGINS env var to comma-separated domains
 # e.g. ALLOWED_ORIGINS=https://curezyai.in,https://www.curezyai.in
 _raw_origins = os.getenv("ALLOWED_ORIGINS", "*")
@@ -70,7 +70,7 @@ app.add_middleware(
 def health_check():
     return {"status": "healthy", "service": "Curezy AI"}
 
-# ── Services
+#  Services
 preprocessor         = PatientPreprocessor()
 reasoner             = ClinicalReasoner()
 uncertainty_engine   = UncertaintyEngine()
@@ -89,9 +89,9 @@ if os.path.isdir("static"):
 
 
 
-# ─────────────────────────────────────────
+# 
 # SCHEMAS
-# ─────────────────────────────────────────
+# 
 
 class PatientInput(BaseModel):
     patient_id: str
@@ -118,7 +118,7 @@ class CouncilFeedbackInput(BaseModel):
     """Patient/doctor feedback submitted from the chat UI FeedbackBar."""
     session_id: str                          # backend conversation_id  
     patient_id: Optional[str] = None
-    rating: int                              # 1–5 stars
+    rating: int                              # 1-5 stars
     actual_diagnosis: Optional[str] = None  # if doctor corrects it
     doctor_verified: Optional[bool] = False
     feedback_notes: Optional[str] = ""
@@ -156,9 +156,9 @@ class ChatCompletionRequest(BaseModel):
     stream: Optional[bool] = False
 
 
-# ─────────────────────────────────────────
+# 
 # AUTH ROUTES (public)
-# ─────────────────────────────────────────
+# 
 
 @app.post("/auth/login")
 def login(data: LoginInput):
@@ -178,9 +178,9 @@ def login(data: LoginInput):
     }
 
 
-# ─────────────────────────────────────────
+# 
 # PUBLIC ROUTES
-# ─────────────────────────────────────────
+# 
 
 @app.get("/")
 def root():
@@ -216,9 +216,9 @@ async def notify_approve(data: dict, current_user: dict = Depends(get_current_us
     EmailService.notify_approval(target_email)
     return {"success": True}
 
-# ─────────────────────────────────────────
+# 
 # PROTECTED ROUTES
-# ─────────────────────────────────────────
+# 
 
 @app.post("/preprocess")
 @limiter.limit("30/minute")
@@ -246,7 +246,7 @@ def preprocess_patient(
 @app.websocket("/ws/analyze/{patient_id}")
 async def websocket_analyze(websocket: WebSocket, patient_id: str):
     await websocket.accept()
-    print(f"[WebSocket] 🟢 Connected for patient {patient_id}")
+    print(f"[WebSocket] Connected for patient {patient_id}")
     try:
         # Wait for the client to send the patient state payload
         data = await websocket.receive_json()
@@ -273,13 +273,33 @@ async def websocket_analyze(websocket: WebSocket, patient_id: str):
         await websocket.send_json({"event": "final_result", "data": clinical_output_dict})
         
     except WebSocketDisconnect:
-        print(f"[WebSocket] 🔴 Client disconnected for patient {patient_id}")
+        print(f"[WebSocket] Client disconnected for patient {patient_id}")
     except Exception as e:
-        print(f"[WebSocket] ❌ Error: {e}")
+        print(f"[WebSocket] Error: {e}")
         try:
             await websocket.send_json({"event": "error", "message": str(e)})
         except:
             pass
+
+@app.post("/debug/council")
+async def debug_council(data: dict):
+    """Temporary endpoint for direct backend latency benchmarking."""
+    try:
+        # Mocking minimal patient state for the reasoner
+        patient_state = {
+            "patient_id": "debug-001",
+            "symptoms_text": data.get("symptoms", ""),
+            "age": data.get("age", 28),
+            "gender": data.get("gender", "male"),
+            "medical_history_text": "",
+            "lab_text": "",
+            "medications_text": ""
+        }
+        print(f"[Debug] Testing council latency for: {data.get('symptoms')}")
+        result = await reasoner.analyze(patient_state)
+        return {"success": True, "analysis": result.dict()}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
 
 @app.post("/analyze")
 @limiter.limit("10/minute")
@@ -288,9 +308,10 @@ async def analyze_patient(
     data: PatientInput,
     current_user: dict = Depends(get_current_user)
 ):
+    start_rest = time.time()
     try:
         ollama_host = os.getenv("OLLAMA_HOST", "http://localhost:11434")
-        print(f"[REST] ☁️ Routing AI Council to GCP Ollama @ {ollama_host}")
+        print(f"[REST] Routing AI Council to GCP Ollama @ {ollama_host}")
 
         patient_state = preprocessor.process(
             patient_id=data.patient_id,
@@ -316,7 +337,7 @@ async def analyze_patient(
             patient_state_dict, clinical_output_dict
         )
 
-        # Step 4.5 — Match Medicines
+        # Step 4.5 -- Match Medicines
         treatment_goals = clinical_output_dict.get("treatment_goals", [])
         if treatment_goals:
             print(f"[Pharmacy] Finding medicines for goals: {treatment_goals}")
@@ -325,7 +346,7 @@ async def analyze_patient(
         else:
             clinical_output_dict["recommended_medicines"] = []
 
-        # Step 5 — Audit log
+        # Step 5 -- Audit log
         log_result = audit_logger.log_prediction(
             patient_id=data.patient_id,
             patient_state=patient_state_dict,
@@ -333,7 +354,7 @@ async def analyze_patient(
             doctor_id=current_user["user_id"]
         )
 
-        # Step 6 — Digital twin
+        # Step 6 -- Digital twin
         twin_engine.record_visit(
             patient_state=patient_state_dict,
             clinical_analysis=clinical_output_dict,
@@ -347,7 +368,9 @@ async def analyze_patient(
             "clinical_analysis": clinical_output_dict,
             "confidence_report": confidence_report_dict,
             "active_data_gaps": data_gaps,
-            "audit_log_id": log_result.get("log_id")
+            "audit_log_id": log_result.get("log_id"),
+            "latency_ms": round((time.time() - start_rest) * 1000, 2),
+            "council_latency": clinical_output_dict.get("latency_breakdown")
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -413,7 +436,7 @@ async def analyze_xray(
             shutil.copyfileobj(file.file, buffer)
 
         ollama_host = os.getenv("OLLAMA_HOST", "http://localhost:11434")
-        print(f"[XRay] ☁️ Running X-ray analysis (Ollama @ {ollama_host})...")
+        print(f"[XRay] Running X-ray analysis (Ollama @ {ollama_host})...")
         result = xray_analyzer.analyze(temp_path)
 
         if os.path.exists(temp_path):
@@ -427,10 +450,10 @@ async def analyze_xray(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# ─────────────────────────────────────────
+# 
 # API KEY MANAGEMENT
 # Any authenticated user can generate keys
-# ─────────────────────────────────────────
+# 
 
 @app.post("/admin/apikey/generate")
 @limiter.limit("10/minute")
@@ -451,7 +474,7 @@ def generate_api_key(
             "api_key": key_data["api_key"],
             "key_id": key_data["key_id"],
             "name": key_data["name"],
-            "warning": "Store this key safely — it won't be shown again"
+            "warning": "Store this key safely -- it won't be shown again"
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -461,7 +484,7 @@ def generate_api_key(
 @limiter.limit("10/minute")
 def list_api_keys(
     request: Request,
-    current_user: dict = Depends(get_current_user)  # ← any authenticated user
+    current_user: dict = Depends(get_current_user)  #  any authenticated user
 ):
     try:
         keys = api_key_manager.list_keys()
@@ -475,7 +498,7 @@ def list_api_keys(
 def revoke_api_key(
     request: Request,
     key_id: str,
-    current_user: dict = Depends(get_current_user)  # ← any authenticated user
+    current_user: dict = Depends(get_current_user)  #  any authenticated user
 ):
     try:
         success = api_key_manager.revoke_key(key_id)
@@ -484,9 +507,9 @@ def revoke_api_key(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# ───────────────────────────────────────
+# 
 # CHAT ROUTES
-# ───────────────────────────────────────
+# 
 
 CHAT_UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "temp_uploads")
 os.makedirs(CHAT_UPLOAD_DIR, exist_ok=True)
@@ -504,12 +527,12 @@ def start_conversation(
     """Create a new conversation and return the conversation_id + Stage 1 metadata.
     
     The greeting message is returned for reference but NOT persisted to the session.
-    This ensures that resuming an empty conversation never replays a greeting —
+    This ensures that resuming an empty conversation never replays a greeting --
     the frontend idle canvas handles the fresh-chat UX instead.
     """
     state = conversation_manager.create_conversation(patient_id)
     greeting = intake_engine.get_greeting()
-    # ✅  Do NOT persist greeting — frontend idle canvas handles fresh-chat UX
+    # [OK]  Do NOT persist greeting -- frontend idle canvas handles fresh-chat UX
     # conversation_manager.add_message(state.conversation_id, MessageRole.ASSISTANT, greeting)
     stage_meta = intake_engine.get_stage_metadata(state.stage)
     return {
@@ -568,43 +591,56 @@ async def stream_chat_message(
     if not result_dict["trigger_analysis"]:
         # If no analysis triggered, just return immediately
         async def fast_stream():
-            yield f'data: {json.dumps({"type":"result", "data": {"success": True, "message": result_dict["response"], "stage": result_dict["stage"], "stage_metadata": result_dict["stage_metadata"]}})}\n\n'
-        return StreamingResponse(fast_stream(), media_type="text/event-stream")
+            yield f'data: {json.dumps({"type":"result", "data": {"success": True, "message": result_dict["response"], "stage": result_dict["stage"], "stage_metadata": result_dict["stage_metadata"]}}, ensure_ascii=False)}\n\n'
+        return StreamingResponse(
+            fast_stream(), media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
+        )
 
-    # If analysis triggered, stream progress while it runs
+    # Analysis triggered -- stream keepalive pings until council finishes
     async def event_stream():
-        yield 'data: {"type":"status","message":"🔬 Preparing clinical data..."}\n\n'
-        
-        # Start analysis in background
-        task = asyncio.create_task(_run_council_analysis(data.conversation_id, state, data.selected_model))
-        
-        statuses = [
-            "🧠 AURIX primary diagnosis...",
-            "⚖️ AURA validating clinical evidence...",
-            "🎯 AURIS challenging edge cases...",
-            "📊 Bayesian consensus engine calculating...",
-            "📝 Generating final medical brief..."
-        ]
-        
-        for status in statuses:
-            if task.done(): break
-            yield f'data: {json.dumps({"type":"status","message":status})}\n\n'
-            # Wait up to 3 seconds before next fake status, unless task finishes
-            try:
-                await asyncio.wait_for(asyncio.shield(task), timeout=3.0)
-                break
-            except asyncio.TimeoutError:
-                continue
-                
-        # Wait for the task to fully complete if it hasn't
-        if not task.done():
-            yield 'data: {"type":"status","message":"⏳ Finalizing..."}\n\n'
-            await task
-            
-        final_result = task.result()
-        yield f'data: {json.dumps({"type":"result","data":final_result})}\n\n'
+        yield f'data: {json.dumps({"type":"status","message":"Secure diagnostic environment initializing..."}, ensure_ascii=False)}\n\n'
 
-    return StreamingResponse(event_stream(), media_type="text/event-stream")
+        # Start council in a background task so we can yield keepalives while it runs
+        task = asyncio.create_task(_run_council_analysis(data.conversation_id, state, data.selected_model))
+
+        # Status messages cycle every 15 s to keep the SSE connection alive.
+        # GCP / nginx / Cloudflare close idle HTTP connections after 30-60 s without data.
+        status_cycle = [
+            "AURIX: Formulating primary differential...",
+            "AURA: Cross-referencing biomedical knowledge base...",
+            "AURIS: Stress-testing clinical hypotheses...",
+            "Bayesian consensus engine calculating weights...",
+            "Moderator synthesising council debate...",
+            "Finalising diagnostic confidence scores...",
+        ]
+        cycle_idx = 0
+        PING_INTERVAL = 15.0  # seconds
+
+        while not task.done():
+            msg = status_cycle[cycle_idx % len(status_cycle)]
+            cycle_idx += 1
+            yield f'data: {json.dumps({"type":"status","message":msg}, ensure_ascii=False)}\n\n'
+            try:
+                await asyncio.wait_for(asyncio.shield(task), timeout=PING_INTERVAL)
+            except asyncio.TimeoutError:
+                continue  # council still running -- send next ping
+
+        # Task done -- check for exception BEFORE calling .result()
+        task_exc = task.exception()
+        if task_exc is not None:
+            print(f"[Stream] Council task raised: {task_exc}")
+            yield f'data: {json.dumps({"type":"error","message":f"Analysis error: {str(task_exc)}"}, ensure_ascii=False)}\n\n'
+            return
+
+        final_result = task.result()
+        yield f'data: {json.dumps({"type":"result","data":final_result}, ensure_ascii=False)}\n\n'
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
+    )
 
 
 @app.post("/chat/message")
@@ -677,8 +713,8 @@ async def upload_report(
 ):
     """
     Upload a document (PDF/TXT/DOCX) or medical image (JPG/PNG).
-    - Documents: extracted via Groq → returns parsed_fields
-    - Images: analyzed via xray_analyzer → returns image_findings
+    - Documents: extracted via Groq -> returns parsed_fields
+    - Images: analyzed via xray_analyzer -> returns image_findings
     Advances the conversation stage if appropriate.
     """
     import re as _re
@@ -701,7 +737,7 @@ async def upload_report(
     with open(save_path, "wb") as f:
         f.write(content)
 
-    # — Document: Groq extraction —
+    # -- Document: Groq extraction --
     if ext in ALLOWED_DOC_EXTS:
         try:
             parse_result = document_parser.process_file(save_path, file.filename)
@@ -730,15 +766,15 @@ async def upload_report(
             "message": (
                 "Document uploaded and medical information extracted."
                 if parse_result.get("success")
-                else "Document uploaded but extraction had issues — your report is still saved."
+                else "Document uploaded but extraction had issues -- your report is still saved."
             ),
         }
 
-    # — Medical Image: analyzer —
+    # -- Medical Image: analyzer --
     else:
         try:
             ollama_host = os.getenv("OLLAMA_HOST", "http://localhost:11434")
-            print(f"[XRay] ☁️ Running X-ray analysis for doc-flow (Ollama @ {ollama_host})...")
+            print(f"[XRay] Running X-ray analysis for doc-flow (Ollama @ {ollama_host})...")
             findings = xray_analyzer.analyze(save_path)
         except Exception as e:
             findings = {"success": False, "error": str(e)}
@@ -827,10 +863,10 @@ def get_chat_history(
     }
 
 
-# ── Internal: run the 3-model council and format results ──
+#  Internal: run the 3-model council and format results 
 
 async def _run_council_analysis(conversation_id: str, state, selected_model: str = None) -> dict:
-    """Runs analysis — full council or a single model — and returns structured results."""
+    """Runs analysis -- full council or a single model -- and returns structured results."""
     SINGLE_MODEL_KEYS = {"medgemma", "openbiollm", "mistral"}
     use_single = selected_model and selected_model.lower() in SINGLE_MODEL_KEYS
 
@@ -871,7 +907,7 @@ async def _run_council_analysis(conversation_id: str, state, selected_model: str
 
     try:
         ollama_host = os.getenv("OLLAMA_HOST", "http://localhost:11434")
-        print(f"[Chat] ☁️ Routing AI Council to GCP Ollama @ {ollama_host}")
+        print(f"[Chat] Routing AI Council to GCP Ollama @ {ollama_host}")
         import asyncio
 
         patient_state = preprocessor.process(
@@ -886,7 +922,7 @@ async def _run_council_analysis(conversation_id: str, state, selected_model: str
         )
         patient_state_dict = patient_state.dict()
 
-        # ── Route to single model or full council ──
+        #  Route to single model or full council 
         if use_single:
             clinical_output = await reasoner.analyze_single(patient_state_dict, selected_model.lower())
         else:
@@ -902,7 +938,7 @@ async def _run_council_analysis(conversation_id: str, state, selected_model: str
             patient_state_dict, clinical_output_dict
         )
 
-        # ── Add successful result to Semantic Cache ──
+        #  Add successful result to Semantic Cache 
         if not use_single:
             semantic_cache.add_to_cache(
                 patient_state=patient_state_dict,
@@ -911,7 +947,7 @@ async def _run_council_analysis(conversation_id: str, state, selected_model: str
                 data_gaps=data_gaps
             )
 
-        # ── Regardless of Cloud vs Local, format message and update Audit Logs ──
+        #  Regardless of Cloud vs Local, format message and update Audit Logs 
         result_message = _format_analysis_for_chat(
             clinical_output_dict, confidence_report_dict, data_gaps
         )
@@ -943,7 +979,7 @@ async def _run_council_analysis(conversation_id: str, state, selected_model: str
             audit_log_id=log_result.get("log_id", "unknown")
         )
 
-        # ── Trigger Email Report (Async) ──
+        #  Trigger Email Report (Async) 
         if state.patient_id and "@" in state.patient_id:
             # If patient_id happens to be an email (some flows use email as ID)
             EmailService.send_analysis_report(
@@ -963,6 +999,7 @@ async def _run_council_analysis(conversation_id: str, state, selected_model: str
             "audit_log_id": log_result.get("log_id"),
             "imaging_used": len(state.images_uploaded) > 0,
             "reports_used": len(state.reports_uploaded) > 0,
+            "latency_breakdown": clinical_output_dict.get("latency_breakdown")
         }
 
     except Exception as e:
@@ -1062,19 +1099,19 @@ async def chat_completions(
     }
 
 
-# ─────────────────────────────────────────
+# 
 # HELPERS
-# ─────────────────────────────────────────
+# 
 
 def _format_analysis_for_chat(clinical: dict, confidence: dict, data_gaps: list) -> str:
     # Short confirmation header. 
     # The frontend now renders the detailed report card from structured JSON.
-    return "## 🩺 Curezy AI Health Assessment\n\n✅ Analysis complete — review the detailed clinical report below."
+    return "## Diagnosis Curezy AI Health Assessment\n\n Analysis complete - review the detailed clinical report below."
 
 
-# ─────────────────────────────────────────
+# 
 # FINE-TUNING PIPELINE ROUTES
-# ─────────────────────────────────────────
+# 
 
 FINETUNE_UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "finetune", "uploads")
 os.makedirs(FINETUNE_UPLOAD_DIR, exist_ok=True)
@@ -1151,9 +1188,9 @@ def finetune_rollback(request: Request):
     }
 
 
-# ══════════════════════════════════════════════════════════════
+# 
 # BENCHMARK ENDPOINTS
-# ══════════════════════════════════════════════════════════════
+# 
 
 import subprocess
 import threading
@@ -1256,13 +1293,13 @@ def benchmark_results(request: Request):
             with open(p, "r", encoding="utf-8") as f:
                 data = _json.load(f)
             return {"success": True, "results": data}
-    return {"success": False, "message": "No benchmark results yet — run a benchmark first"}
+    return {"success": False, "message": "No benchmark results yet -- run a benchmark first"}
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# PHASE 2 — COUNCIL FEEDBACK ENDPOINT
+# 
+# PHASE 2 -- COUNCIL FEEDBACK ENDPOINT
 # Records patient/doctor ratings for the auto-training loop.
-# ─────────────────────────────────────────────────────────────────────────────
+# 
 
 @app.post("/feedback/council")
 @limiter.limit("60/minute")
@@ -1278,7 +1315,7 @@ async def submit_council_feedback(request: Request, data: CouncilFeedbackInput):
     supabase_key = os.getenv("SUPABASE_SERVICE_KEY") or os.getenv("SUPABASE_ANON_KEY")
 
     if not (supabase_url and supabase_key):
-        # Supabase not configured — accept gracefully so UI doesn't error
+        # Supabase not configured -- accept gracefully so UI doesn't error
         return {"success": True, "message": "Feedback noted (persistence not configured)"}
 
     try:
@@ -1322,7 +1359,7 @@ async def submit_council_feedback(request: Request, data: CouncilFeedbackInput):
                     "q_score":          outcome.get("q_score"),
                     "user_rating":      data.rating,
                 }).execute()
-                print(f"[Feedback] 📚 Case promoted to library (source: {quality_source})")
+                print(f"[Feedback] Case promoted to library (source: {quality_source})")
 
         return {
             "success":  True,
@@ -1331,6 +1368,6 @@ async def submit_council_feedback(request: Request, data: CouncilFeedbackInput):
         }
 
     except Exception as e:
-        print(f"[Feedback] ❌ Error: {e}")
-        # Don't crash the UI — return gracefully
+        print(f"[Feedback] Error: {e}")
+        # Don't crash the UI -- return gracefully
         return {"success": True, "message": "Feedback recorded"}
