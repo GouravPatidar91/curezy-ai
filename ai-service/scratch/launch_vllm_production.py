@@ -50,27 +50,28 @@ containers = [
         "name": "aurix",
         "port": 8001,
         "model": "bartowski/OpenBioLLM-Llama3-8B-AWQ", 
-        "util": 0.35,
+        "util": 0.28,
         "extra": "--quantization awq"
     },
     {
         "name": "aura",
         "port": 8002,
         "model": "BioMistral/BioMistral-7B-AWQ-QGS128-W4-GEMM",
-        "util": 0.30,
+        "util": 0.28,
         "extra": "--quantization awq"
     },
     {
         "name": "auris",
         "port": 8003,
-        "model": "casperhansen/llama-3-8b-instruct-awq",
-        "util": 0.25,
+        "model": "bartowski/Llama-3.2-3B-Instruct-AWQ",
+        "util": 0.18,
         "extra": "--quantization awq"
     }
 ]
 
-print("--- LAUNCHING MEDICAL AWQ COUNCIL (vLLM) ---")
+print("--- LAUNCHING STABILIZED MEDICAL COUNCIL (vLLM) ---")
 for c in containers:
+    print(f"[Launch] Starting {c['name']} ({c['model']})...")
     cmd = (
         f"sudo docker run -d --name {c['name']} "
         f"--runtime nvidia --gpus '\"device=0\"' "
@@ -85,7 +86,8 @@ for c in containers:
         f"{c['extra']}"
     )
     run_remote(cmd)
-    time.sleep(15) # Wait for each to claim VRAM
+    print(f"[Wait] Sleeping 60s for VRAM residency...")
+    time.sleep(60) # CRITICAL: vLLM needs time to claim VRAM safely
 
 print("\n--- STATUS ---")
 run_remote("sudo docker ps")

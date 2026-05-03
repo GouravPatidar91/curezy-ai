@@ -218,11 +218,11 @@ COUNCIL = [
     },
     {
         "name": "Curezy AURIS",
-        "model": "casperhansen/llama-3-8b-instruct-awq",
+        "model": "bartowski/Llama-3.2-3B-Instruct-AWQ",
         "specialty": "Medical Analyst",
         "role": "Devil's Advocate",
         "weight": 1.2,
-        "tokens": 4096
+        "tokens": 2048
     },
 ]
 
