@@ -50,7 +50,7 @@ containers = [
         "name": "aurix",
         "port": 8001,
         "model": "bartowski/OpenBioLLM-Llama3-8B-AWQ", 
-        "util": 0.28,
+        "util": 0.35,
         "extra": "--quantization awq"
     },
     {
@@ -63,15 +63,14 @@ containers = [
     {
         "name": "auris",
         "port": 8003,
-        "model": "bartowski/Llama-3.2-3B-Instruct-AWQ",
-        "util": 0.18,
+        "model": "bartowski/gemma-2-2b-it-AWQ",
+        "util": 0.12,
         "extra": "--quantization awq"
     }
 ]
 
-print("--- LAUNCHING STABILIZED MEDICAL COUNCIL (vLLM) ---")
+print("--- LAUNCHING VLLM COUNCIL (STABLE v0.6.3) ---")
 for c in containers:
-    print(f"[Launch] Starting {c['name']} ({c['model']})...")
     cmd = (
         f"sudo docker run -d --name {c['name']} "
         f"--runtime nvidia --gpus '\"device=0\"' "
@@ -82,12 +81,11 @@ for c in containers:
         f"vllm/vllm-openai:v0.6.3.post1 "
         f"--model {c['model']} "
         f"--gpu-memory-utilization {c['util']} "
-        f"--max-model-len 4096 "
+        f"--max-model-len 2048 "
         f"{c['extra']}"
     )
     run_remote(cmd)
-    print(f"[Wait] Sleeping 60s for VRAM residency...")
-    time.sleep(60) # CRITICAL: vLLM needs time to claim VRAM safely
+    time.sleep(10) # Wait for each to claim VRAM
 
 print("\n--- STATUS ---")
 run_remote("sudo docker ps")

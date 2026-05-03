@@ -37,17 +37,20 @@ for i in {1..30}; do
   sleep 3
 done
 
-# 4. Pre-warm all 3 council models in parallel (L4 has 22.5GB, all fit at ~12GB total)
+# 4. Launch vLLM Council if enabled
+#    This runs the 'Elite Indian Council' (OpenBioLLM, BioMistral, Gemma) in parallel.
+if [ -f "ai-service/scratch/launch_vllm_production.py" ]; then
+  echo "[INFO] Launching high-speed vLLM council..."
+  python3 ai-service/scratch/launch_vllm_production.py || echo "[WARN] vLLM launch failed"
+fi
+
+# 5. Pre-warm Ollama models (Fallback)
 (
-  echo "[INFO] Pre-warming council models into GPU VRAM in parallel..."
+  echo "[INFO] Pre-warming fallback models into GPU VRAM..."
   curl -s -X POST http://localhost:11434/api/generate \
     -d '{"model":"alibayram/medgemma:4b","prompt":"","keep_alive":-1}' > /dev/null &
-  curl -s -X POST http://localhost:11434/api/generate \
-    -d '{"model":"koesn/llama3-openbiollm-8b:latest","prompt":"","keep_alive":-1}' > /dev/null &
-  curl -s -X POST http://localhost:11434/api/generate \
-    -d '{"model":"mistral:7b","prompt":"","keep_alive":-1}' > /dev/null &
   wait
-  echo "[OK] All 3 council models warm in VRAM — 62 tok/s on L4 GPU"
+  echo "[OK] Fallback models warm in VRAM"
 ) &
 
 # 5. Get external IP from GCP metadata server

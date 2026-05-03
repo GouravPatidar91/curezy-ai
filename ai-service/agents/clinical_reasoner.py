@@ -196,9 +196,6 @@ class OutputValidator:
 # AURA   = main balanced model  (Evidence Validator,     weight 1.4)
 # AURIS  = fast lightweight     (Devil's Advocate,       weight 1.2)
 # AURANET = the full council system
-COUNCIL = []
-
-# Council Models (Specialized Medical AWQ)
 COUNCIL = [
     {
         "name": "Curezy AURIX",
@@ -206,7 +203,7 @@ COUNCIL = [
         "specialty": "Primary Clinician",
         "role": "Lead Diagnostician",
         "weight": 1.5,
-        "tokens": 4096
+        "tokens": 2048
     },
     {
         "name": "Curezy AURA",
@@ -214,15 +211,15 @@ COUNCIL = [
         "specialty": "Clinical Researcher",
         "role": "Evidence Validator",
         "weight": 1.4,
-        "tokens": 4096
+        "tokens": 2048
     },
     {
         "name": "Curezy AURIS",
-        "model": "bartowski/Llama-3.2-3B-Instruct-AWQ",
+        "model": "bartowski/gemma-2-2b-it-AWQ",
         "specialty": "Medical Analyst",
         "role": "Devil's Advocate",
         "weight": 1.2,
-        "tokens": 2048
+        "tokens": 1536
     },
 ]
 
@@ -708,15 +705,23 @@ class ClinicalReasoner:
         # Force vLLM in production or if detected
         env_mode = os.getenv("ENVIRONMENT", "development").lower()
         has_vllm = is_port_open(8001)
-        use_vllm_env = os.getenv("USE_VLLM", "false").lower() == "true"
+        use_vllm_env = os.getenv("USE_VLLM", "true").lower() == "true"
         
         if env_mode == "production" or has_vllm or use_vllm_env:
-            print("[Council] High-speed Medical vLLM Engine ACTIVE")
+            print("[Council] High-speed vLLM Parallel Engine ACTIVE")
             from agents.vllm_client import VLLMCouncilClient
             self.llm = VLLMCouncilClient()
         else:
             print("[Council] Fallback mode: Ollama Engine")
             self.llm = CouncilLLMClient()
+            
+        self.prompts   = PromptBuilder()
+        self.detector  = HallucinationDetector()
+        self.consensus = WeightedConsensusEngine()
+        self.validator = OutputValidator()
+        self.rag       = RAGRetriever()
+        print(f"[Council] Initialized ({len(COUNCIL)} members):")
+        for d in COUNCIL: print(f"  {d['name']} -- {d['model']}")
             
         self.prompts   = PromptBuilder()
         self.detector  = HallucinationDetector()
