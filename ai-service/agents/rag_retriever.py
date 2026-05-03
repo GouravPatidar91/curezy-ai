@@ -37,8 +37,8 @@ class RAGRetriever:
             return ""
             
         try:
-            # 1. Generate query embedding
-            embedding = self.model.encode([symptoms_text])[0].tolist()
+            # 1. Generate query embedding (ensure input is a single string)
+            embedding = self.model.encode(str(symptoms_text)).tolist()
             
             # 2. Query Supabase RPC
             response = self.supabase.rpc(

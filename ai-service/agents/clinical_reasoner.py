@@ -1179,8 +1179,15 @@ class ClinicalReasoner:
             await _emit("round_started", {"round": 4, "name": "Consensus Engine"})
             total  = round(time.time()-start, 1)
             result = self.consensus.build(
-                patient_symptoms=patient_symptoms, moderator_output=moderator_output,
-                forced_conditions=forced_conditions, forced_flags=forced_flags
+                council_outputs=council_outputs,
+                debate_outputs=debate_outputs,
+                h_report=h_report,
+                patient_id=pid,
+                execution_time=total,
+                patient_symptoms=patient_symptoms,
+                moderator_output=moderator_output,
+                forced_conditions=forced_conditions,
+                forced_flags=forced_flags
             )
             tracker.mark("Round 4: Bayesian Consensus")
             await _emit("round_completed", {"round": 4, "confidence": result.consensus_confidence})
