@@ -17,11 +17,12 @@ class VLLMCouncilClient:
         "Curezy AURIS": os.getenv("AURIS_VLLM_URL", "http://localhost:8003/v1/chat/completions"),
     }
 
-    # Map doctor names to the actual model ID served by the endpoint (crucial for Ollama)
+    # Map doctor names to the actual model ID served by the vLLM endpoints.
+    # We force these here to ensure they match the containers launched by launch_vllm_production.py
     MODEL_MAP = {
-        "Curezy AURIX": os.getenv("AURIX_MODEL", "bartowski/OpenBioLLM-Llama3-8B-AWQ"),
-        "Curezy AURA":  os.getenv("AURA_MODEL",  "BioMistral/BioMistral-7B-AWQ-QGS128-W4-GEMM"),
-        "Curezy AURIS": os.getenv("AURIS_MODEL", "bartowski/gemma-2-2b-it-AWQ"),
+        "Curezy AURIX": "bartowski/OpenBioLLM-Llama3-8B-AWQ",
+        "Curezy AURA":  "BioMistral/BioMistral-7B-AWQ-QGS128-W4-GEMM",
+        "Curezy AURIS": "bartowski/gemma-2-2b-it-AWQ",
     }
 
     @retry(
