@@ -13,9 +13,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# ─────────────────────────────────────────────
+# 
 # Quality thresholds
-# ─────────────────────────────────────────────
+# 
 MIN_INSTRUCTION_LEN = 40
 MIN_OUTPUT_LEN      = 80
 MIN_LLM_SCORE       = 7  # out of 10
@@ -118,7 +118,7 @@ class QualityFilter:
         stats["output"] = len(passed_final)
         stats["pass_rate"] = round(len(passed_final) / len(examples) * 100, 1) if examples else 0
 
-        print(f"[Filter] ✅ {stats['output']}/{stats['input']} examples passed ({stats['pass_rate']}%)")
+        print(f"[Filter] [OK] {stats['output']}/{stats['input']} examples passed ({stats['pass_rate']}%)")
         if stats["reasons"]:
             print(f"[Filter] Rejection reasons: {stats['reasons']}")
 
@@ -209,6 +209,6 @@ if __name__ == "__main__":
         
         filt = QualityFilter(use_llm_scoring=False)
         passed, stats = filt.filter(test_examples)
-        print(f"\n✅ Filter test:")
+        print(f"\n[OK] Filter test:")
         print(f"   Input: {stats['input']}, Output: {stats['output']}, Rejected: {stats['rejected']}")
         print(f"   Reasons: {stats['reasons']}")

@@ -1,5 +1,5 @@
 """
-runpod_handler.py  —  Curezy AURANET Serverless Entry Point
+runpod_handler.py  --  Curezy AURANET Serverless Entry Point
 Models and services are loaded lazily on first request to avoid startup timeouts.
 """
 
@@ -10,10 +10,10 @@ import sys
 import os
 import traceback
 
-# ── Add ai-service root to path ───────────────────────────────────────────────
+#  Add ai-service root to path 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-# ── Lazy globals (loaded on first request) ────────────────────────────────────
+#  Lazy globals (loaded on first request) 
 _initialized    = False
 _preprocessor   = None
 _reasoner       = None
@@ -22,13 +22,13 @@ _xray_analyzer  = None
 
 
 def _init():
-    """Cold-start init — runs once per worker on the first request."""
+    """Cold-start init -- runs once per worker on the first request."""
     global _initialized, _preprocessor, _reasoner, _uncertainty
 
     if _initialized:
         return
 
-    print("[Curezy] Cold start — initialising worker...")
+    print("[Curezy] Cold start -- initialising worker...")
 
     # 1. Start Ollama
     _start_ollama()
@@ -51,14 +51,14 @@ def _init():
         _reasoner       = ClinicalReasoner()
         _uncertainty    = UncertaintyEngine()
         _xray_analyzer  = ChestXRayAnalyzer()
-        print("[Curezy] ✅ All services loaded")
+        print("[Curezy] [OK] All services loaded")
     except Exception as e:
-        print(f"[Curezy] ❌ Service load error: {e}")
+        print(f"[Curezy] [FAIL] Service load error: {e}")
         traceback.print_exc()
         raise
 
     _initialized = True
-    print("[Curezy] ✅ Worker ready!")
+    print("[Curezy] [OK] Worker ready!")
 
 
 def _start_ollama():
@@ -72,7 +72,7 @@ def _start_ollama():
         try:
             import ollama as _ol
             _ol.list()
-            print("[Curezy] ✅ Ollama running")
+            print("[Curezy] [OK] Ollama running")
             return
         except Exception:
             time.sleep(2)
@@ -94,11 +94,11 @@ def _pull_if_needed(model: str):
         if not any(base in n for n in names):
             print(f"[Curezy] Pulling {model}...")
             _ol.pull(model)
-            print(f"[Curezy] ✅ {model} pulled")
+            print(f"[Curezy] [OK] {model} pulled")
         else:
-            print(f"[Curezy] ✅ {model} already cached")
+            print(f"[Curezy] [OK] {model} already cached")
     except Exception as e:
-        print(f"[Curezy] ⚠️ Pull warning for {model}: {e}")
+        print(f"[Curezy] [WARN] Pull warning for {model}: {e}")
 
 
 def _rename_models():
@@ -106,12 +106,12 @@ def _rename_models():
         script = os.path.join(os.path.dirname(__file__), "ollama_rename.py")
         if os.path.exists(script):
             subprocess.run([sys.executable, script], timeout=60, check=False)
-            print("[Curezy] ✅ Models branded")
+            print("[Curezy] [OK] Models branded")
     except Exception as e:
-        print(f"[Curezy] ⚠️ Rename warning: {e}")
+        print(f"[Curezy] [WARN] Rename warning: {e}")
 
 
-# ── Main handler ──────────────────────────────────────────────────────────────
+#  Main handler 
 
 def handler(job: dict) -> dict:
     """
@@ -218,7 +218,7 @@ def handler(job: dict) -> dict:
         }
 
 
-# ── Start RunPod worker ───────────────────────────────────────────────────────
+#  Start RunPod worker 
 if __name__ == "__main__":
     print("[Curezy] Starting RunPod serverless worker...")
     runpod.serverless.start({"handler": handler})

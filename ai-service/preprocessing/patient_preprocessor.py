@@ -24,9 +24,9 @@ except ImportError:
     scispacy = None
 
 
-# ─────────────────────────────────────────
+# 
 # DATA MODELS
-# ─────────────────────────────────────────
+# 
 
 class LabReport(BaseModel):
     test_name: str
@@ -65,9 +65,9 @@ class PatientState(BaseModel):
     timestamp: str
 
 
-# ─────────────────────────────────────────
+# 
 # SPACY MEDICATION EXTRACTOR
-# ─────────────────────────────────────────
+# 
 
 class SpacyMedicalExtractor:
     def __init__(self):
@@ -171,9 +171,9 @@ class SpacyMedicalExtractor:
         return list(medications.values())
 
 
-# ─────────────────────────────────────────
+# 
 # SYMPTOM EXTRACTOR
-# ─────────────────────────────────────────
+# 
 
 class SymptomExtractor:
     def __init__(self):
@@ -214,9 +214,9 @@ class SymptomExtractor:
         return found
 
 
-# ─────────────────────────────────────────
+# 
 # LAB REPORT PARSER
-# ─────────────────────────────────────────
+# 
 
 class LabReportParser:
     def __init__(self):
@@ -262,9 +262,9 @@ class LabReportParser:
         return results
 
 
-# ─────────────────────────────────────────
+# 
 # OCR PROCESSOR
-# ─────────────────────────────────────────
+# 
 
 import google.generativeai as genai
 
@@ -321,9 +321,9 @@ class OCRProcessor:
             return {'error': str(e)}
 
 
-# ─────────────────────────────────────────
+# 
 # RISK FACTOR EXTRACTOR
-# ─────────────────────────────────────────
+# 
 
 class RiskFactorExtractor:
     def __init__(self):
@@ -343,9 +343,9 @@ class RiskFactorExtractor:
         return found
 
 
-# ─────────────────────────────────────────
+# 
 # MAIN PREPROCESSOR
-# ─────────────────────────────────────────
+# 
 
 class PatientPreprocessor:
     def __init__(self):

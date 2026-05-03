@@ -1,19 +1,19 @@
 """
-RAG-Lite Symptom → Differential Diagnosis Knowledge Base
+RAG-Lite Symptom -> Differential Diagnosis Knowledge Base
 Sources: NICE Clinical Guidelines, CDC Symptom Trees, BMJ Best Practice
 Used to anchor LLM outputs to clinically relevant conditions
 """
 
 from typing import List, Dict, Tuple
 
-# ─────────────────────────────────────────────────────────────────────────────
-# SYMPTOM CLUSTER → DIFFERENTIAL MAP
-# Each entry: symptom_set → [(condition, urgency_level, typical_probability)]
+# 
+# SYMPTOM CLUSTER -> DIFFERENTIAL MAP
+# Each entry: symptom_set -> [(condition, urgency_level, typical_probability)]
 # urgency: 'routine' | 'urgent' | 'emergency'
-# ─────────────────────────────────────────────────────────────────────────────
+# 
 
 SYMPTOM_DIFFERENTIAL_MAP: List[Dict] = [
-    # ── Headache clusters ────────────────────────────────────────────────────
+    #  Headache clusters 
     {
         "symptoms":    {"headache", "fever", "neck stiffness", "photophobia"},
         "conditions":  [
@@ -54,7 +54,7 @@ SYMPTOM_DIFFERENTIAL_MAP: List[Dict] = [
         ],
         "red_flags":   ["BP > 180/120", "sudden onset", "arm weakness"],
     },
-    # ── Chest pain clusters ──────────────────────────────────────────────────
+    #  Chest pain clusters 
     {
         "symptoms":    {"chest pain", "shortness of breath", "sweating"},
         "conditions":  [
@@ -75,7 +75,7 @@ SYMPTOM_DIFFERENTIAL_MAP: List[Dict] = [
         ],
         "red_flags":   ["hemoptysis", "high fever", "SpO2 < 94%"],
     },
-    # ── Respiratory clusters ─────────────────────────────────────────────────
+    #  Respiratory clusters 
     {
         "symptoms":    {"shortness of breath", "wheezing", "cough"},
         "conditions":  [
@@ -86,7 +86,7 @@ SYMPTOM_DIFFERENTIAL_MAP: List[Dict] = [
         ],
         "red_flags":   ["silent chest", "cyanosis", "unable to speak"],
     },
-    # ── Abdominal clusters ───────────────────────────────────────────────────
+    #  Abdominal clusters 
     {
         "symptoms":    {"abdominal pain", "fever", "nausea", "vomiting"},
         "conditions":  [
@@ -107,7 +107,7 @@ SYMPTOM_DIFFERENTIAL_MAP: List[Dict] = [
         ],
         "red_flags":   ["bloody diarrhea", "high fever", "severe dehydration"],
     },
-    # ── Fever clusters ───────────────────────────────────────────────────────
+    #  Fever clusters 
     {
         "symptoms":    {"fever", "fatigue", "sore throat", "swollen lymph nodes"},
         "conditions":  [
@@ -128,18 +128,18 @@ SYMPTOM_DIFFERENTIAL_MAP: List[Dict] = [
         ],
         "red_flags":   ["high fever > 40C", "rapid deterioration", "travel history"],
     },
-    # ── Neurological clusters ────────────────────────────────────────────────
+    #  Neurological clusters 
     {
         "symptoms":    {"dizziness", "nausea", "vomiting", "loss of balance"},
         "conditions":  [
             ("Benign Paroxysmal Positional Vertigo", "routine", 40),
             ("Acute Vestibular Neuritis", "urgent", 30),
-            ("Ménière's Disease", "routine", 15),
+            ("Mnire's Disease", "routine", 15),
             ("Cerebellar Stroke", "emergency", 15),
         ],
         "red_flags":   ["diplopia", "dysarthria", "falls", "sudden onset"],
     },
-    # ── Skin clusters ────────────────────────────────────────────────────────
+    #  Skin clusters 
     {
         "symptoms":    {"rash", "fever", "joint pain"},
         "conditions":  [
@@ -150,7 +150,7 @@ SYMPTOM_DIFFERENTIAL_MAP: List[Dict] = [
         ],
         "red_flags":   ["petechiae", "purpuric rash", "joint swelling"],
     },
-    # ── Urinary clusters ─────────────────────────────────────────────────────
+    #  Urinary clusters 
     {
         "symptoms":    {"burning urination", "frequency", "pelvic pain"},
         "conditions":  [
@@ -161,7 +161,7 @@ SYMPTOM_DIFFERENTIAL_MAP: List[Dict] = [
         ],
         "red_flags":   ["flank pain", "high fever", "rigors"],
     },
-    # ── Cardiac clusters ─────────────────────────────────────────────────────
+    #  Cardiac clusters 
     {
         "symptoms":    {"palpitations", "shortness of breath", "dizziness"},
         "conditions":  [
@@ -175,9 +175,9 @@ SYMPTOM_DIFFERENTIAL_MAP: List[Dict] = [
 ]
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+# 
 # LOOKUP FUNCTIONS
-# ─────────────────────────────────────────────────────────────────────────────
+# 
 
 def _normalise(text: str) -> str:
     return text.lower().strip()

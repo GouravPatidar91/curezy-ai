@@ -30,7 +30,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     except Exception:
         return False
 
-# ── Pre-hashed passwords
+#  Pre-hashed passwords
 _DOCTOR_HASH = get_password_hash("doctor123")
 _ADMIN_HASH  = get_password_hash("admin123")
 
@@ -52,9 +52,9 @@ USERS_DB = {
 }
 
 
-# ─────────────────────────────────────────
+# 
 # TOKEN UTILS
-# ─────────────────────────────────────────
+# 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
@@ -77,15 +77,15 @@ def authenticate_user(username: str, password: str) -> Optional[dict]:
     return None
 
 
-# ─────────────────────────────────────────
+# 
 # DEPENDENCIES
-# ─────────────────────────────────────────
+# 
 
 async def get_current_user(
     request: Request,
     authorization: Optional[str] = Header(None)
 ):
-    # ── API Key auth
+    #  API Key auth
     if authorization and authorization.startswith("Bearer curezy_live_"):
         api_key = authorization.replace("Bearer ", "")
         from security.api_key_manager import APIKeyManager
@@ -95,7 +95,7 @@ async def get_current_user(
             raise HTTPException(status_code=401, detail="Invalid API key")
         return {"user_id": key_data.get("client"), "role": "api", "type": "apikey"}
 
-    # ── Supabase JWT auth (ECC P-256)
+    #  Supabase JWT auth (ECC P-256)
     if authorization and authorization.startswith("Bearer "):
         token = authorization.replace("Bearer ", "")
         try:

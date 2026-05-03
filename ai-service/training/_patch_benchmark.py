@@ -10,7 +10,7 @@ FILE = "real_benchmark.py"
 with open(FILE, "r", encoding="utf-8") as f:
     src = f.read()
 
-# ── 1. Find and replace run_question ─────────────────────────────────────────
+#  1. Find and replace run_question 
 RQ_PATTERN = re.compile(
     r"(    def run_question\(self, question: dict\) -> dict:.*?return \{.*?\}(?:\n|$))",
     re.DOTALL
@@ -81,7 +81,7 @@ if match:
     src = src[:match.start()] + NEW_RQ + src[match.end():]
     print(f"[1] Patched run_question() at char {match.start()}")
 else:
-    print("[1] WARNING: run_question pattern not found — patching by line number")
+    print("[1] WARNING: run_question pattern not found -- patching by line number")
     lines = src.splitlines(keepends=True)
     # Find "def run_question" line
     start = next((i for i, l in enumerate(lines) if "def run_question" in l), None)
@@ -98,7 +98,7 @@ else:
     else:
         print("[1] FATAL: can't find run_question")
 
-# ── 2. Patch run() to pass q_index and update status after each question ────
+#  2. Patch run() to pass q_index and update status after each question 
 # Find the loop line:  result = self.run_question(q)
 OLD_CALL = "                result = self.run_question(q)"
 NEW_CALL = "                result = self.run_question(q, q_index=results.__len__())"
@@ -132,7 +132,7 @@ if OLD_APPEND in src:
     src = src.replace(OLD_APPEND, NEW_APPEND, 1)
     print("[3] Patched run() append with live status update")
 
-# ── 3. Update _compile call / status on completion ───────────────────────────
+#  3. Update _compile call / status on completion 
 OLD_COMPILE = "        report = self._compile(results, model_scores_r1, model_scores_final,"
 NEW_COMPILE = '''\
         # Mark done in live status
@@ -148,8 +148,8 @@ if OLD_COMPILE in src:
     src = src.replace(OLD_COMPILE, NEW_COMPILE, 1)
     print("[4] Patched run() completion marker")
 
-# ── After self._save_excel, store full report and set status=completed ───────
-OLD_SAVE = '        self._save_excel(report, results)\n        print(f"\\n📊 Saved: benchmark_results.json + benchmark_report.xlsx\\n")'
+#  After self._save_excel, store full report and set status=completed 
+OLD_SAVE = '        self._save_excel(report, results)\n        print(f"\\n Saved: benchmark_results.json + benchmark_report.xlsx\\n")'
 NEW_SAVE = '''\
         self._save_excel(report, results)
         print(f"\\n Results saved: benchmark_results.json + benchmark_report.xlsx\\n")
@@ -163,7 +163,7 @@ if OLD_SAVE in src:
 else:
     print("[5] WARNING: save pattern not found")
 
-# ── Write back ─────────────────────────────────────────────────────────────
+#  Write back 
 with open(FILE, "w", encoding="utf-8") as f:
     f.write(src)
 
@@ -171,7 +171,7 @@ with open(FILE, "w", encoding="utf-8") as f:
 import ast
 try:
     ast.parse(src)
-    print(f"\n✅ Syntax OK — {len(src.splitlines())} lines")
+    print(f"\n[OK] Syntax OK -- {len(src.splitlines())} lines")
 except SyntaxError as e:
-    print(f"\n❌ Syntax error at line {e.lineno}: {e.msg}")
+    print(f"\n[FAIL] Syntax error at line {e.lineno}: {e.msg}")
     print(f"   {e.text}")

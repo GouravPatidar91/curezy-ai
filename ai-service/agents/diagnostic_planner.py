@@ -1,5 +1,5 @@
 """
-agents/diagnostic_planner.py — Diagnostic Planning Agent (Phase 4.2)
+agents/diagnostic_planner.py -- Diagnostic Planning Agent (Phase 4.2)
 After producing the top diagnosis, generates a ranked step-by-step diagnostic plan.
 Transforms Curezy from "what might be wrong" to "here's what tests to do, in what order".
 Competes with Isabel DDx, DynaMed, and UpToDate clinical decision support.
@@ -14,18 +14,18 @@ Top diagnosis: Bacterial Meningitis (65%)
 Patient: 28F, fever, neck stiffness, headache
 
 Diagnostic plan:
-1. Non-contrast CT head [IMMEDIATE] — Rule out raised ICP before LP. Do NOT delay antibiotics for CT.
-2. Lumbar Puncture [IMMEDIATE after CT] — CSF analysis confirms/excludes bacterial vs viral. Key: WBC, protein, glucose, culture.
-3. Blood cultures x2 [BEFORE antibiotics if possible] — Identifies causative organism for targeted antibiotic therapy.
-4. IV Ceftriaxone 2g + Dexamethasone [STAT] — Empirical broad-spectrum coverage. Do not delay.
-5. MRI brain [if no improvement in 48h] — Rules out cerebral abscess or herpes encephalitis.
+1. Non-contrast CT head [IMMEDIATE] -- Rule out raised ICP before LP. Do NOT delay antibiotics for CT.
+2. Lumbar Puncture [IMMEDIATE after CT] -- CSF analysis confirms/excludes bacterial vs viral. Key: WBC, protein, glucose, culture.
+3. Blood cultures x2 [BEFORE antibiotics if possible] -- Identifies causative organism for targeted antibiotic therapy.
+4. IV Ceftriaxone 2g + Dexamethasone [STAT] -- Empirical broad-spectrum coverage. Do not delay.
+5. MRI brain [if no improvement in 48h] -- Rules out cerebral abscess or herpes encephalitis.
 """
 
 PLANNER_PROMPT = """You are a clinical decision support system. Given the top diagnosis and patient data, produce a 5-step diagnostic test-ordering plan.
 
 RULES:
 1. Each step must specify: test name, timing (IMMEDIATE/urgent/routine), and what result would tell clinicians.
-2. Order tests by priority — most critical first.
+2. Order tests by priority -- most critical first.
 3. Include treatments only if time-sensitive (e.g., antibiotics before culture results).
 4. Be specific to THIS patient's data.
 

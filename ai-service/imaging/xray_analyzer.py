@@ -22,9 +22,9 @@ except ImportError:
     sam_model_registry, SamPredictor = None, None
 
 
-# ─────────────────────────────────────────
+# 
 # XRAY ANALYZER WITH GRADCAM HEATMAP
-# ─────────────────────────────────────────
+# 
 
 class GradCAM:
     def __init__(self, model, target_layer):
@@ -74,7 +74,7 @@ class ChestXRayAnalyzer:
     def __init__(self):
         self.is_ready = all(x is not None for x in [torch, xrv, cv2, Image])
         if not self.is_ready:
-            print("[XRayAnalyzer] ⚠️ Missing heavy dependencies (torch/xrv/cv2). Local analysis disabled.")
+            print("[XRayAnalyzer] [WARN] Missing heavy dependencies (torch/xrv/cv2). Local analysis disabled.")
             return
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

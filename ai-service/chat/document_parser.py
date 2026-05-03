@@ -1,5 +1,5 @@
 """
-document_parser.py — Groq-powered extraction of structured medical data
+document_parser.py -- Groq-powered extraction of structured medical data
 from uploaded PDF, TXT, and DOCX files.
 """
 
@@ -143,7 +143,7 @@ class DocumentParser:
 
     def process_file(self, file_path: str, filename: str) -> dict:
         """
-        Full pipeline: extract text → Groq parse → return result dict.
+        Full pipeline: extract text -> Groq parse -> return result dict.
 
         Returns:
           {

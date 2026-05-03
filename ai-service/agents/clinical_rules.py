@@ -1,5 +1,5 @@
 """
-agents/clinical_rules.py — Hard Clinical Decision Rules Engine (Phase 2.2)
+agents/clinical_rules.py -- Hard Clinical Decision Rules Engine (Phase 2.2)
 30 deterministic rules that fire BEFORE any LLM call to guarantee correct
 emergency conditions always appear in the differential.
 Pattern used by every production medical AI system.
@@ -8,14 +8,14 @@ Pattern used by every production medical AI system.
 from typing import List, Dict, Tuple, Optional
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+# 
 # RULE DEFINITIONS
-# Each rule: symptom_pattern → forced_condition + urgency + flags
-# ─────────────────────────────────────────────────────────────────────────────
+# Each rule: symptom_pattern -> forced_condition + urgency + flags
+# 
 
 HARD_RULES: List[Dict] = [
 
-    # ── NEUROLOGICAL EMERGENCIES ──────────────────────────────────────────────
+    #  NEUROLOGICAL EMERGENCIES 
     {
         "id": "NEURO-01",
         "require_any": {"neck stiffness", "meningism", "kernig", "brudzinski"},
@@ -44,7 +44,7 @@ HARD_RULES: List[Dict] = [
         "probability": 60,
         "urgency": "EMERGENCY",
         "flags": ["FAST assessment required", "Activate stroke protocol", "tPA window: 4.5h from onset"],
-        "basis": "FAST criteria (Face, Arm, Speech, Time) — acute stroke protocol"
+        "basis": "FAST criteria (Face, Arm, Speech, Time) -- acute stroke protocol"
     },
     {
         "id": "NEURO-04",
@@ -57,7 +57,7 @@ HARD_RULES: List[Dict] = [
         "basis": "Fever + new-onset seizure requires emergency workup"
     },
 
-    # ── CARDIAC EMERGENCIES ───────────────────────────────────────────────────
+    #  CARDIAC EMERGENCIES 
     {
         "id": "CARD-01",
         "require_any": {"chest pain", "chest tightness", "chest pressure"},
@@ -79,7 +79,7 @@ HARD_RULES: List[Dict] = [
         "basis": "Syncope + palpitations = life-threatening arrhythmia until excluded"
     },
 
-    # ── RESPIRATORY EMERGENCIES ───────────────────────────────────────────────
+    #  RESPIRATORY EMERGENCIES 
     {
         "id": "RESP-01",
         "require_any": {"shortness of breath", "breathlessness", "cannot breathe", "dyspnea"},
@@ -108,10 +108,10 @@ HARD_RULES: List[Dict] = [
         "probability": 65,
         "urgency": "EMERGENCY",
         "flags": ["Peak flow < 50% predicted = severe", "Nebulised salbutamol + IV magnesium", "ICU if no response"],
-        "basis": "Silent chest = life-threatening asthma — no air entry heard"
+        "basis": "Silent chest = life-threatening asthma -- no air entry heard"
     },
 
-    # ── ABDOMINAL EMERGENCIES ─────────────────────────────────────────────────
+    #  ABDOMINAL EMERGENCIES 
     {
         "id": "ABDO-01",
         "require_any": {"right lower quadrant pain", "mcburney point", "rlq pain", "right iliac fossa"},
@@ -143,7 +143,7 @@ HARD_RULES: List[Dict] = [
         "basis": "Epigastric pain radiating to back + vomiting = pancreatitis until excluded"
     },
 
-    # ── SEPSIS ────────────────────────────────────────────────────────────────
+    #  SEPSIS 
     {
         "id": "SEPSIS-01",
         "require_any": {"high fever", "fever 39", "fever 40", "temperature 39", "temperature 40"},
@@ -155,7 +155,7 @@ HARD_RULES: List[Dict] = [
         "basis": "Sepsis criteria: fever + organ dysfunction signs = 'Surviving Sepsis Campaign' protocol"
     },
 
-    # ── ANAPHYLAXIS ───────────────────────────────────────────────────────────
+    #  ANAPHYLAXIS 
     {
         "id": "ALLRG-01",
         "require_any": {"rash", "hives", "urticaria"},
@@ -167,19 +167,19 @@ HARD_RULES: List[Dict] = [
         "basis": "Urticaria + respiratory/cardiovascular symptoms after trigger = anaphylaxis"
     },
 
-    # ── MENTAL HEALTH EMERGENCY ───────────────────────────────────────────────
+    #  MENTAL HEALTH EMERGENCY 
     {
         "id": "MH-01",
         "require_any": {"suicidal thoughts", "self harm", "want to die", "kill myself"},
         "require_any_also": None,
-        "forced_condition": "Acute Mental Health Crisis — Suicidal Ideation",
+        "forced_condition": "Acute Mental Health Crisis -- Suicidal Ideation",
         "probability": 95,
         "urgency": "EMERGENCY",
         "flags": ["Immediate mental health crisis assessment", "Do not leave patient alone", "Emergency psychiatric referral"],
         "basis": "Suicidal ideation always requires immediate crisis intervention"
     },
 
-    # ── HYPERTENSIVE EMERGENCY ────────────────────────────────────────────────
+    #  HYPERTENSIVE EMERGENCY 
     {
         "id": "CARD-03",
         "require_any": {"severe headache", "blurred vision", "visual disturbance"},
@@ -191,7 +191,7 @@ HARD_RULES: List[Dict] = [
         "basis": "Headache + visual disturbance in hypertensive patient = hypertensive crisis"
     },
 
-    # ── OBSTETRIC EMERGENCY ───────────────────────────────────────────────────
+    #  OBSTETRIC EMERGENCY 
     {
         "id": "OBS-01",
         "require_any": {"abdominal pain"},
@@ -199,15 +199,15 @@ HARD_RULES: List[Dict] = [
         "forced_condition": "Ectopic Pregnancy (in reproductive-age female)",
         "probability": 40,
         "urgency": "EMERGENCY",
-        "flags": ["β-hCG urgent", "Pelvic ultrasound", "Surgical review if haemodynamically unstable"],
+        "flags": ["-hCG urgent", "Pelvic ultrasound", "Surgical review if haemodynamically unstable"],
         "basis": "Abdominal pain + possible pregnancy in reproductive-age female = exclude ectopic"
     },
 ]
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+# 
 # RULE ENGINE
-# ─────────────────────────────────────────────────────────────────────────────
+# 
 
 def _text_contains_any(text: str, keywords: set) -> bool:
     return any(kw.lower() in text for kw in keywords)
@@ -239,7 +239,7 @@ def run_clinical_rules(patient_state: dict) -> Tuple[List[Dict], List[str]]:
             secondary_match = _text_contains_any(symptom_text, rule["require_any_also"])
 
         if primary_match and secondary_match:
-            print(f"[ClinicalRules] 🚨 Rule fired: {rule['id']} — {rule['forced_condition']}")
+            print(f"[ClinicalRules] Rule fired: {rule['id']} - {rule['forced_condition']}")
             fired_rules.append(rule["id"])
 
             forced_conditions.append({

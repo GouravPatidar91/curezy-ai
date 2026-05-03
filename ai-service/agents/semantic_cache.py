@@ -99,7 +99,7 @@ class SemanticCache:
             data = response.data
             if data and len(data) > 0:
                 best_score = data[0].get("similarity", 0)
-                print(f"[SemanticCache] 🔥 CACHE HIT (pgvector)! Similarity score: {best_score:.4f}. Returning instant millisecond response.")
+                print(f"[SemanticCache]  CACHE HIT (pgvector)! Similarity score: {best_score:.4f}. Returning instant millisecond response.")
                 return (data[0]["clinical_analysis"], data[0]["confidence_report"], data[0].get("data_gaps", []))
                 
         except Exception as e:

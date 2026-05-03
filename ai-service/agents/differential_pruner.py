@@ -1,19 +1,19 @@
 """
-agents/differential_pruner.py — Differential Diagnosis Pruner (Phase 1.3)
+agents/differential_pruner.py -- Differential Diagnosis Pruner (Phase 1.3)
 Eliminates conditions from the differential when key classic symptoms are absent.
 Modeled on real internist diagnostic logic: "If it were X, the patient would have Y.
-They don't have Y → X probability is reduced."
+They don't have Y -> X probability is reduced."
 Used in Isabel DDx and VisualDx clinical decision support systems.
 """
 
 from typing import List, Dict, Tuple
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# CONDITION → REQUIRED SYMPTOM MAP
+# 
+# CONDITION -> REQUIRED SYMPTOM MAP
 # "If the condition is present, you'd typically expect these symptoms"
-# Absence of ≥N of these reduces the condition's probability
-# ─────────────────────────────────────────────────────────────────────────────
+# Absence of N of these reduces the condition's probability
+# 
 
 CONDITION_REQUIREMENTS: Dict[str, Dict] = {
     "Bacterial Meningitis": {
@@ -144,24 +144,24 @@ def prune_conditions(conditions: List[dict], patient_symptoms: List[str]) -> Lis
             # Check if at least one must-have symptom is present
             must_have_present = any(_symptom_present(s, patient_symptoms) for s in must_have)
             if not must_have_present and must_have:
-                # Hard reduction — core symptom is missing
+                # Hard reduction -- core symptom is missing
                 total_penalty = min(max_penalty + 15, 55)
                 new_prob = max(5, prob - total_penalty)
                 new_conf = max(5, conf - 20)
                 absent_must = list(must_have)[:2]
                 reasoning   = f"[PRUNED] Missing core symptom(s): {', '.join(absent_must)}. " + reasoning
-                evidence.append(f"ABSENT: {', '.join(absent_must)} — key discriminating feature not reported")
-                print(f"[Pruner] ⬇️  {name}: {prob}% → {new_prob}% (missing core: {absent_must})")
+                evidence.append(f"ABSENT: {', '.join(absent_must)} -- key discriminating feature not reported")
+                print(f"[Pruner] DOWN {name}: {prob}% -> {new_prob}% (missing core: {absent_must})")
                 prob, conf = new_prob, new_conf
 
             else:
-                # Soft reduction — count absent classic symptoms
+                # Soft reduction -- count absent classic symptoms
                 absent = [s for s in classic if not _symptom_present(s, patient_symptoms)]
                 penalty = min(len(absent) * penalty_each, max_penalty)
                 if penalty > 0:
                     new_prob = max(5, prob - penalty)
                     reasoning = f"[PRUNED -{penalty}%] {len(absent)} classic symptom(s) absent: {', '.join(list(absent)[:3])}. " + reasoning
-                    print(f"[Pruner] ⬇️  {name}: {prob}% → {new_prob}% ({len(absent)} absent)")
+                    print(f"[Pruner] DOWN {name}: {prob}% -> {new_prob}% ({len(absent)} absent)")
                     prob = new_prob
 
         pruned.append({
@@ -184,5 +184,5 @@ def get_pruning_summary(original: List[dict], pruned: List[dict]) -> str:
         orig_prob = float(orig.get("probability", 0))
         prun_prob = float(prun.get("probability", 0))
         if abs(orig_prob - prun_prob) >= 5:
-            changes.append(f"{orig.get('condition','?')}: {orig_prob}% → {prun_prob}%")
+            changes.append(f"{orig.get('condition','?')}: {orig_prob}% -> {prun_prob}%")
     return "; ".join(changes) if changes else "No pruning applied"

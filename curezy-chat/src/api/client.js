@@ -6,7 +6,7 @@ const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000'
 // Standard API instance — 3-minute timeout for most calls
 const api = axios.create({ baseURL: API_URL, timeout: 180_000 })
 
-// Long-timeout instance — 8 minutes for council/GCP Ollama analysis
+// Long-timeout instance — kept for non-streaming analysis fallback
 const analysisApi = axios.create({ baseURL: API_URL, timeout: 480_000 })
 
 // Attach Supabase JWT to every request
@@ -32,6 +32,80 @@ export const startChat = () => api.post('/chat/start')
 // sendMessage uses the long-timeout instance because it may trigger council analysis (60-120s+)
 export const sendMessage = (convId, msg, selectedModel = null) =>
     analysisApi.post('/chat/message', { conversation_id: convId, message: msg, selected_model: selectedModel })
+
+/**
+ * streamSendMessage — SSE-based analysis call. Eliminates the 8-minute timeout issue.
+ *
+ * Uses fetch + ReadableStream to connect to /chat/message/stream which keeps the
+ * HTTP connection alive and streams progress events until the final result arrives.
+ * This replaces the blocking HTTP POST for council analysis triggers.
+ *
+ * @param {string} convId        - Backend conversation ID
+ * @param {string} msg           - User message text
+ * @param {string|null} selectedModel - 'council' | 'medgemma' | 'openbiollm' | 'mistral'
+ * @param {Function} onStatus    - Called with each status string (e.g. "🧠 AURIX analyzing...")
+ * @param {AbortSignal} signal   - Optional AbortSignal for cancellation
+ * @returns {Promise<object>}    - Resolves with the final result data object
+ */
+export const streamSendMessage = async (convId, msg, selectedModel = null, onStatus = null, signal = null) => {
+    const { data: { session } } = await supabase.auth.getSession()
+    const headers = { 'Content-Type': 'application/json' }
+    if (session?.access_token) headers['Authorization'] = `Bearer ${session.access_token}`
+
+    const response = await fetch(`${API_URL}/chat/message/stream`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ conversation_id: convId, message: msg, selected_model: selectedModel }),
+        signal,
+    })
+
+    if (!response.ok) {
+        const errText = await response.text().catch(() => response.statusText)
+        throw Object.assign(new Error(errText), { response: { status: response.status } })
+    }
+
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+
+    return new Promise((resolve, reject) => {
+        const pump = async () => {
+            try {
+                while (true) {
+                    const { done, value } = await reader.read()
+                    if (done) { reject(new Error('SSE stream closed without result')); return }
+
+                    buffer += decoder.decode(value, { stream: true })
+                    const lines = buffer.split('\n')
+                    buffer = lines.pop() // keep incomplete last line
+
+                    for (const line of lines) {
+                        if (!line.startsWith('data: ')) continue
+                        const raw = line.slice(6).trim()
+                        if (!raw || raw === '[DONE]') continue
+                        try {
+                            const event = JSON.parse(raw)
+                            if (event.type === 'status' && onStatus) {
+                                onStatus(event.message)
+                            } else if (event.type === 'result') {
+                                reader.cancel()
+                                resolve(event.data)
+                                return
+                            } else if (event.type === 'error') {
+                                reader.cancel()
+                                reject(new Error(event.message || 'Analysis failed'))
+                                return
+                            }
+                        } catch (_) { /* ignore malformed SSE line */ }
+                    }
+                }
+            } catch (err) {
+                reject(err)
+            }
+        }
+        pump()
+    })
+}
 
 export const resumeChat = (convId) => api.post('/chat/resume', { conversation_id: convId })
 

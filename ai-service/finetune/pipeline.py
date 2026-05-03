@@ -26,9 +26,9 @@ from finetune.quality_filter import QualityFilter
 from finetune.trainer import ModelTrainer
 from finetune.deploy import OllamaDeploy
 
-# ─────────────────────────────────────────────
+# 
 # Shared job store (in-memory, keyed by job_id)
-# ─────────────────────────────────────────────
+# 
 _job_store: dict = {}
 _lock = threading.Lock()
 
@@ -53,9 +53,9 @@ def _update_job(job_id: str, **kwargs):
             _job_store[job_id]["updated_at"] = datetime.now().isoformat()
 
 
-# ─────────────────────────────────────────────
+# 
 # Pipeline runner (runs in background thread)
-# ─────────────────────────────────────────────
+# 
 
 def run_pipeline(file_path: str, file_type: str, job_id: str):
     """
@@ -63,14 +63,14 @@ def run_pipeline(file_path: str, file_type: str, job_id: str):
     Updates job_store throughout for real-time status polling.
     """
     def progress(msg: str, pct: int):
-        print(f"[Pipeline:{job_id}] {pct}% — {msg}")
+        print(f"[Pipeline:{job_id}] {pct}% -- {msg}")
         _update_job(job_id, status="running", stage_message=msg, progress=pct)
 
     _update_job(job_id, status="running", stage="parsing", progress=2)
 
     try:
-        # ── Step 1: Parse File ─────────────────────────────────────────
-        progress("📄 Parsing file...", 5)
+        #  Step 1: Parse File 
+        progress(" Parsing file...", 5)
         _update_job(job_id, stage="parsing")
 
         parse_result = parse_file(file_path)
@@ -85,10 +85,10 @@ def run_pipeline(file_path: str, file_type: str, job_id: str):
             "char_count":  char_count,
             "file_name":   parse_result["file_name"]
         })
-        progress(f"✅ Parsed {char_count:,} characters from {file_type.upper()}", 15)
+        progress(f"[OK] Parsed {char_count:,} characters from {file_type.upper()}", 15)
 
-        # ── Step 2: Convert to JSONL ───────────────────────────────────
-        progress("🤖 Converting to training data via AI...", 20)
+        #  Step 2: Convert to JSONL 
+        progress(" Converting to training data via AI...", 20)
         _update_job(job_id, stage="converting")
 
         converter = JSOLConverter()
@@ -97,11 +97,11 @@ def run_pipeline(file_path: str, file_type: str, job_id: str):
         if not raw_examples:
             raise ValueError("AI converter produced 0 examples. Check if file has valid medical content.")
 
-        progress(f"✅ Generated {len(raw_examples)} raw examples", 40)
+        progress(f"[OK] Generated {len(raw_examples)} raw examples", 40)
         _update_job(job_id, raw_example_count=len(raw_examples))
 
-        # ── Step 3: Quality Filter ─────────────────────────────────────
-        progress("✅ Running quality filter...", 45)
+        #  Step 3: Quality Filter 
+        progress("[OK] Running quality filter...", 45)
         _update_job(job_id, stage="filtering")
 
         qfilter = QualityFilter(use_llm_scoring=True)
@@ -115,11 +115,11 @@ def run_pipeline(file_path: str, file_type: str, job_id: str):
         jsonl_path = str(DATASET_DIR / f"{job_id}_dataset.jsonl")
         converter.save_jsonl(filtered, jsonl_path)
 
-        progress(f"✅ {len(filtered)} high-quality examples saved (filtered {len(raw_examples) - len(filtered)} low-quality)", 55)
+        progress(f"[OK] {len(filtered)} high-quality examples saved (filtered {len(raw_examples) - len(filtered)} low-quality)", 55)
         _update_job(job_id, filter_stats=filter_stats, dataset_path=jsonl_path)
 
-        # ── Step 4: Fine-Tune All Models ───────────────────────────────
-        progress("🔥 Starting fine-tuning (this may take 30-90 minutes)...", 60)
+        #  Step 4: Fine-Tune All Models 
+        progress(" Starting fine-tuning (this may take 30-90 minutes)...", 60)
         _update_job(job_id, stage="training")
 
         def train_progress(msg, pct):
@@ -134,14 +134,14 @@ def run_pipeline(file_path: str, file_type: str, job_id: str):
         if not successful_models:
             raise ValueError(f"All models failed training: {[r.get('error') for r in train_results.values()]}")
 
-        progress(f"✅ Trained: {', '.join(successful_models)}", 82)
+        progress(f"[OK] Trained: {', '.join(successful_models)}", 82)
         if failed_models:
-            progress(f"⚠️  Failed: {', '.join(failed_models)} (partial success)", 82)
+            progress(f"[WARN]  Failed: {', '.join(failed_models)} (partial success)", 82)
 
         _update_job(job_id, train_results=train_results)
 
-        # ── Step 5: Deploy to Ollama ───────────────────────────────────
-        progress("🚀 Deploying to Ollama...", 85)
+        #  Step 5: Deploy to Ollama 
+        progress(" Deploying to Ollama...", 85)
         _update_job(job_id, stage="deploying")
 
         deployer = OllamaDeploy(progress_callback=train_progress)
@@ -152,16 +152,16 @@ def run_pipeline(file_path: str, file_type: str, job_id: str):
             if r.get("success")
         ]
 
-        progress(f"✅ Deployed: {', '.join(deployed_names)}", 98)
+        progress(f"[OK] Deployed: {', '.join(deployed_names)}", 98)
         _update_job(job_id, deploy_results=deploy_results)
 
-        # ── Complete ───────────────────────────────────────────────────
+        #  Complete 
         _update_job(
             job_id,
             status="completed",
             stage="done",
             progress=100,
-            stage_message=f"✅ Pipeline complete! {len(deployed_names)} model(s) deployed.",
+            stage_message=f"[OK] Pipeline complete! {len(deployed_names)} model(s) deployed.",
             completed_at=datetime.now().isoformat(),
             summary={
                 "characters_parsed":   char_count,
@@ -172,10 +172,10 @@ def run_pipeline(file_path: str, file_type: str, job_id: str):
                 "models_failed":       failed_models,
             }
         )
-        print(f"\n[Pipeline:{job_id}] ✅ COMPLETE — {len(deployed_names)} models deployed")
+        print(f"\n[Pipeline:{job_id}] [OK] COMPLETE -- {len(deployed_names)} models deployed")
 
     except Exception as e:
-        print(f"\n[Pipeline:{job_id}] ❌ FAILED: {e}")
+        print(f"\n[Pipeline:{job_id}] [FAIL] FAILED: {e}")
         traceback.print_exc()
         _update_job(
             job_id,
@@ -183,7 +183,7 @@ def run_pipeline(file_path: str, file_type: str, job_id: str):
             stage="error",
             progress=0,
             error=str(e),
-            stage_message=f"❌ Error: {str(e)[:200]}",
+            stage_message=f"[FAIL] Error: {str(e)[:200]}",
             failed_at=datetime.now().isoformat()
         )
 

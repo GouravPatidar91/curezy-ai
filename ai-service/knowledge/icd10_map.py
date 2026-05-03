@@ -1,5 +1,5 @@
 """
-knowledge/icd10_map.py — ICD-10 Canonical Name Normalizer (Phase 2.3)
+knowledge/icd10_map.py -- ICD-10 Canonical Name Normalizer (Phase 2.3)
 Maps common condition name variants to their WHO canonical ICD-10 name.
 Prevents "Flu" and "Influenza" from being treated as different diagnoses
 in the consensus engine.
@@ -9,13 +9,13 @@ from typing import Optional, Tuple
 import difflib
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+# 
 # ICD-10 CANONICAL MAP
-# Format: canonical_name → [variant names, abbreviations, common misspellings]
-# ─────────────────────────────────────────────────────────────────────────────
+# Format: canonical_name -> [variant names, abbreviations, common misspellings]
+# 
 
 ICD10_CANONICAL: dict = {
-    # ── Respiratory ──────────────────────────────────────────────────────────
+    #  Respiratory 
     "Influenza":                               ["flu", "influenza a", "influenza b", "seasonal flu", "the flu", "grippe"],
     "COVID-19":                                ["covid", "coronavirus", "sars-cov-2", "covid19", "covid 19"],
     "Community-Acquired Pneumonia":            ["pneumonia", "cap", "lobar pneumonia", "bacterial pneumonia", "viral pneumonia", "atypical pneumonia"],
@@ -26,7 +26,7 @@ ICD10_CANONICAL: dict = {
     "Acute Sinusitis":                         ["sinusitis", "sinus infection", "rhinosinusitis", "acute rhinosinusitis"],
     "Pulmonary Embolism":                      ["pe", "pulmonary embolus", "pulmonary thromboembolism", "lung clot"],
 
-    # ── Neurological ─────────────────────────────────────────────────────────
+    #  Neurological 
     "Bacterial Meningitis":                    ["meningitis", "bacterial meningitis", "purulent meningitis", "septic meningitis"],
     "Viral Meningitis":                        ["aseptic meningitis", "viral meningitis", "lymphocytic meningitis"],
     "Migraine":                                ["migraine headache", "migraine without aura", "classical migraine", "migraine attack"],
@@ -37,14 +37,14 @@ ICD10_CANONICAL: dict = {
     "Benign Paroxysmal Positional Vertigo":    ["bppv", "positional vertigo", "ear crystals", "otolith vertigo"],
     "Vestibular Neuritis":                     ["labyrinthitis", "vestibular neuronitis", "inner ear infection", "acute vestibular neuritis"],
 
-    # ── Cardiac ──────────────────────────────────────────────────────────────
+    #  Cardiac 
     "Acute Myocardial Infarction":             ["heart attack", "mi", "ami", "stemi", "nstemi", "myocardial infarct", "myocardial infarction"],
     "Unstable Angina":                         ["acs", "acute coronary syndrome", "unstable angina pectoris"],
     "Atrial Fibrillation":                     ["afib", "af", "a fib", "atrial fibrillation", "irregular heartbeat"],
     "Heart Failure":                           ["congestive heart failure", "chf", "decompensated heart failure", "cardiac failure"],
     "Hypertensive Emergency":                  ["malignant hypertension", "hypertensive crisis", "hypertensive urgency", "hypertensive emergency"],
 
-    # ── Gastrointestinal ─────────────────────────────────────────────────────
+    #  Gastrointestinal 
     "Viral Gastroenteritis":                   ["stomach flu", "gastro", "gastroenteritis", "stomach bug", "norovirus", "rotavirus", "intestinal flu"],
     "Acute Appendicitis":                      ["appendicitis", "inflamed appendix"],
     "Acute Pancreatitis":                      ["pancreatitis", "inflamed pancreas"],
@@ -54,7 +54,7 @@ ICD10_CANONICAL: dict = {
     "Irritable Bowel Syndrome":                ["ibs", "irritable colon", "spastic colon"],
     "Inflammatory Bowel Disease":             ["ibd", "crohn's", "crohns disease", "ulcerative colitis"],
 
-    # ── Infectious ───────────────────────────────────────────────────────────
+    #  Infectious 
     "Urinary Tract Infection":                 ["uti", "bladder infection", "cystitis", "urine infection", "urinary infection"],
     "Pyelonephritis":                          ["kidney infection", "upper uti", "renal infection"],
     "Sepsis":                                  ["blood poisoning", "bacteraemia", "septicaemia", "septicemia", "systemic infection"],
@@ -63,20 +63,20 @@ ICD10_CANONICAL: dict = {
     "Malaria":                                 ["malarial fever", "plasmodium infection"],
     "Lyme Disease":                            ["lyme borreliosis", "tick disease"],
 
-    # ── Musculoskeletal ───────────────────────────────────────────────────────
+    #  Musculoskeletal 
     "Rheumatoid Arthritis":                    ["ra", "inflammatory arthritis", "rheumatoid joint disease"],
     "Osteoarthritis":                          ["oa", "degenerative joint disease", "wear and tear arthritis"],
     "Gout":                                    ["gouty arthritis", "hyperuricemia", "uric acid arthritis"],
     "Systemic Lupus Erythematosus":            ["sle", "lupus", "systemic lupus"],
 
-    # ── Endocrine/Metabolic ───────────────────────────────────────────────────
+    #  Endocrine/Metabolic 
     "Type 2 Diabetes Mellitus":                ["t2dm", "type 2 diabetes", "diabetes", "adult-onset diabetes", "non-insulin dependent diabetes"],
     "Hypothyroidism":                          ["underactive thyroid", "thyroid deficiency", "hashimoto's thyroiditis"],
     "Hyperthyroidism":                         ["overactive thyroid", "thyrotoxicosis", "graves disease"],
     "Anemia":                                  ["anaemia", "iron deficiency anaemia", "iron deficiency anemia", "low hemoglobin", "low haemoglobin"],
 }
 
-# Build reverse lookup (variant → canonical)
+# Build reverse lookup (variant -> canonical)
 _REVERSE_MAP: dict = {}
 for canonical, variants in ICD10_CANONICAL.items():
     _REVERSE_MAP[canonical.lower()] = canonical
@@ -121,7 +121,7 @@ def normalize_conditions_list(conditions: list) -> list:
             original_name = c.get("condition", "")
             canonical     = normalize_condition_name(original_name)
             if canonical != original_name:
-                print(f"[ICD10] Normalized: '{original_name}' → '{canonical}'")
+                print(f"[ICD10] Normalized: '{original_name}' -> '{canonical}'")
             result.append({**c, "condition": canonical})
         else:
             result.append(c)

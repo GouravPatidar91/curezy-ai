@@ -1,5 +1,5 @@
 """
-quantize_models.py — Curezy AURANET Model Quantization
+quantize_models.py -- Curezy AURANET Model Quantization
 =======================================================
 NOTE: This script runs on the GCP VM (curezyai-std), NOT locally.
       awq and transformers are installed in the GCP VM venv only.
@@ -14,7 +14,7 @@ import os
 import tempfile
 import argparse
 
-# ── Fix /tmp before heavy imports (handles fresh VMs where /tmp may be broken)
+#  Fix /tmp before heavy imports (handles fresh VMs where /tmp may be broken)
 for _tmp_candidate in ["/tmp", "/var/tmp", os.path.expanduser("~/tmp")]:
     try:
         os.makedirs(_tmp_candidate, exist_ok=True)
@@ -26,7 +26,7 @@ for _tmp_candidate in ["/tmp", "/var/tmp", os.path.expanduser("~/tmp")]:
     except Exception:
         continue
 
-# ── GPU/ML imports — only available on GCP VM venv, not local Windows ─────────
+#  GPU/ML imports -- only available on GCP VM venv, not local Windows 
 try:
     from awq import AutoAWQForCausalLM  # type: ignore[import]
     from transformers import AutoTokenizer  # type: ignore[import]
@@ -34,7 +34,7 @@ except ImportError as _e:
     raise SystemExit(
         f"\n[ERROR] Missing dependency: {_e}\n"
         "This script must run on the GCP VM (curezyai-std) inside the venv.\n"
-        "Run: ssh curezyai-std → cd ~/curezy-ai/ai-service → source venv/bin/activate\n"
+        "Run: ssh curezyai-std -> cd ~/curezy-ai/ai-service -> source venv/bin/activate\n"
         "Then install: pip install autoawq transformers\n"
     ) from _e
 
@@ -51,7 +51,7 @@ def quantize_model(model_path: str, quant_path: str) -> None:
             safetensors=True,
         )
     except OSError:
-        print(f"No safetensors for {model_path} — falling back to .bin weights...")
+        print(f"No safetensors for {model_path} -- falling back to .bin weights...")
         model = AutoAWQForCausalLM.from_pretrained(
             model_path,
             low_cpu_mem_usage=True,
@@ -71,12 +71,12 @@ def quantize_model(model_path: str, quant_path: str) -> None:
     model.quantize(tokenizer, quant_config=quant_config)
     model.save_quantized(quant_path)
     tokenizer.save_pretrained(quant_path)
-    print(f"✅ Quantization complete: {quant_path}")
+    print(f"[OK] Quantization complete: {quant_path}")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Curezy AURANET — AWQ 4-bit model quantization"
+        description="Curezy AURANET -- AWQ 4-bit model quantization"
     )
     parser.add_argument("--model", type=str, required=True, help="HF model ID or local path")
     parser.add_argument("--output", type=str, required=True, help="Output directory for AWQ model")

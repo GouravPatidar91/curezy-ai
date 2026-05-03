@@ -35,14 +35,14 @@ SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_KEY") or os.getenv("SUPABASE_KEY")
 
 if not SUPABASE_URL or not SUPABASE_KEY:
-    print("❌ Critical Error: Missing SUPABASE_URL or SUPABASE_KEY in .env file.")
+    print("[FAIL] Critical Error: Missing SUPABASE_URL or SUPABASE_KEY in .env file.")
     print("Please set them and try again.")
     exit(1)
 
 
 def parse_csv_to_dicts(csv_path: str):
     """Load and clean the CSV data."""
-    print(f"📄 Loading CSV {csv_path}...")
+    print(f" Loading CSV {csv_path}...")
     try:
         # Load CSV, treating empty fields as None so Supabase inserts NULL
         df = pd.read_csv(csv_path)
@@ -60,14 +60,14 @@ def parse_csv_to_dicts(csv_path: str):
             )
             
         # Clean up commas in price strings if they exist, to float
-        if 'price(₹)' in df.columns:
-            df['price(₹)'] = df['price(₹)'].replace(r'[^\d.]', '', regex=True)
-            df['price(₹)'] = pd.to_numeric(df['price(₹)'], errors='coerce')
-            df['price(₹)'] = df['price(₹)'].replace({np.nan: None})
+        if 'price()' in df.columns:
+            df['price()'] = df['price()'].replace(r'[^\d.]', '', regex=True)
+            df['price()'] = pd.to_numeric(df['price()'], errors='coerce')
+            df['price()'] = df['price()'].replace({np.nan: None})
             
         return df.to_dict('records')
     except Exception as e:
-        print(f"❌ Failed to load CSV: {e}")
+        print(f"[FAIL] Failed to load CSV: {e}")
         exit(1)
 
 
@@ -99,21 +99,21 @@ def main():
     args = parser.parse_args()
 
     # 1. Init external connections
-    print("🔌 Connecting to Supabase...")
+    print(" Connecting to Supabase...")
     supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
     
-    print(f"🧠 Loading free local Embedding Model ({EMBEDDING_MODEL_NAME})...")
+    print(f"[BRAIN] Loading free local Embedding Model ({EMBEDDING_MODEL_NAME})...")
     # This downloads ~80MB the first time it runs, then runs from cache
     model = SentenceTransformer(EMBEDDING_MODEL_NAME)
     
     # 2. Parse data
     records = parse_csv_to_dicts(args.csv_path)
     total_records = len(records)
-    print(f"📊 Found {total_records} medicine rows.")
+    print(f" Found {total_records} medicine rows.")
 
     batch_size = args.batch_size
     
-    print("🚀 Starting Ingestion Pipeline (Embedding + Upload)...")
+    print(" Starting Ingestion Pipeline (Embedding + Upload)...")
     
     # Process in batches
     for i in tqdm(range(0, total_records, batch_size), desc="Ingesting Batches"):
@@ -131,7 +131,7 @@ def main():
             db_row = {
                 "csv_id": row.get("id"),
                 "name": row.get("name"),
-                "price": row.get("price(₹)"),
+                "price": row.get("price()"),
                 "is_discontinued": row.get("Is_discontinued"),
                 "manufacturer_name": row.get("manufacturer_name"),
                 "type": row.get("type"),
@@ -169,11 +169,11 @@ def main():
             # Insert the rows (requires no unique constraints on csv_id)
             supabase.table("medicines").insert(db_rows).execute()
         except Exception as e:
-            print(f"\n❌ Error inserting batch {i} to {i+batch_size}:")
+            print(f"\n[FAIL] Error inserting batch {i} to {i+batch_size}:")
             print(str(e))
             # Continue to next batch instead of crashing the whole 50k run
             
-    print("✅ Ingestion fully complete! The Medicine Table is ready for RAG.")
+    print("[OK] Ingestion fully complete! The Medicine Table is ready for RAG.")
 
 
 if __name__ == "__main__":

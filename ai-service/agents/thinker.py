@@ -1,5 +1,5 @@
 """
-agents/thinker.py — Think-Revise Loop (Phase 1.1)
+agents/thinker.py -- Think-Revise Loop (Phase 1.1)
 Metacognitive critic pass that reviews initial council outputs and identifies
 logical inconsistencies, missing differentials, and evidence gaps.
 Inspired by OpenAI o1 extended thinking and Reflexion (Shinn et al., 2023).
@@ -8,9 +8,9 @@ Inspired by OpenAI o1 extended thinking and Reflexion (Shinn et al., 2023).
 from typing import List, Dict, Tuple
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+# 
 # CRITIC SCORING RUBRIC
-# ─────────────────────────────────────────────────────────────────────────────
+# 
 
 CRITIC_GUIDE = """
 You are a senior clinical reviewer evaluating a medical AI's differential diagnosis for logical consistency.
@@ -23,7 +23,7 @@ EVALUATION CRITERIA:
 5. URGENCY APPROPRIATENESS: Does the urgency level match the symptom severity and onset?
 
 SCORING:
-Rate each criterion 1–5. Score ≥ 4 on ALL criteria = acceptable. Any score ≤ 2 = must revise.
+Rate each criterion 1-5. Score  4 on ALL criteria = acceptable. Any score  2 = must revise.
 """
 
 # Conditions ALWAYS worth checking given symptom category
@@ -43,8 +43,8 @@ def build_critic_prompt(soap_note: str, doctor_name: str, doctor_output: dict) -
     """Build a meta-critic prompt that evaluates a single doctor's output."""
     top_3 = doctor_output.get("conditions", [])[:3]
     conditions_text = "\n".join(
-        f"  {i+1}. {c.get('condition','?')} ({c.get('probability','?')}%) — "
-        f"Evidence: {c.get('evidence',[])} — Reasoning: {c.get('reasoning','')[:120]}"
+        f"  {i+1}. {c.get('condition','?')} ({c.get('probability','?')}%) -- "
+        f"Evidence: {c.get('evidence',[])} -- Reasoning: {c.get('reasoning','')[:120]}"
         for i, c in enumerate(top_3)
     )
     summary = doctor_output.get("reasoning_summary", "")

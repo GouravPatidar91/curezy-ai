@@ -15,9 +15,9 @@ import subprocess
 from pathlib import Path
 from typing import List, Dict, Optional, Callable
 
-# ─────────────────────────────────────────────
+# 
 # HuggingFace model mappings for each Ollama model
-# ─────────────────────────────────────────────
+# 
 OLLAMA_TO_HF = {
     "alibayram/medgemma:4b":              "google/gemma-3-4b-it",
     "koesn/llama3-openbiollm-8b:latest": "aaditya/Llama3-OpenBioLLM-8B",
@@ -96,9 +96,9 @@ class ModelTrainer:
                     "gguf_path":    str(gguf_path),
                     "hf_model":     hf_model
                 }
-                self.progress_cb(f"✅ {model_name} trained", pct_base + 25)
+                self.progress_cb(f"[OK] {model_name} trained", pct_base + 25)
             except Exception as e:
-                print(f"[Trainer] ❌ {model_name} failed: {e}")
+                print(f"[Trainer] [FAIL] {model_name} failed: {e}")
                 results[model_name] = {"success": False, "error": str(e)}
 
         return results
@@ -183,11 +183,11 @@ class ModelTrainer:
             ),
         )
 
-        print(f"\n[Trainer] 🔥 Training {doctor_name}...")
+        print(f"\n[Trainer]  Training {doctor_name}...")
         trainer.train()
         model.save_pretrained(str(adapter_path))
         tokenizer.save_pretrained(str(adapter_path))
-        print(f"[Trainer] ✅ Adapter saved: {adapter_path}")
+        print(f"[Trainer] [OK] Adapter saved: {adapter_path}")
 
         return adapter_path
 
@@ -227,7 +227,7 @@ class ModelTrainer:
             else:
                 final_path = gguf_path
 
-        print(f"[Trainer] ✅ GGUF exported: {final_path}")
+        print(f"[Trainer] [OK] GGUF exported: {final_path}")
         return final_path
 
     def _format_alpaca(self, ex: dict, tokenizer) -> str:
@@ -253,14 +253,14 @@ class ModelTrainer:
 if __name__ == "__main__":
     import sys
     if "--test" in sys.argv:
-        # Quick check — verify imports
+        # Quick check -- verify imports
         try:
             import torch
-            print(f"✅ PyTorch {torch.__version__} | CUDA: {torch.cuda.is_available()}")
+            print(f"[OK] PyTorch {torch.__version__} | CUDA: {torch.cuda.is_available()}")
             if torch.cuda.is_available():
                 print(f"   GPU: {torch.cuda.get_device_name(0)}")
             from unsloth import FastLanguageModel
-            print("✅ Unsloth installed")
+            print("[OK] Unsloth installed")
         except ImportError as e:
-            print(f"❌ Missing: {e}")
+            print(f"[FAIL] Missing: {e}")
             print("   Run: pip install 'unsloth[cu121-torch250] @ git+https://github.com/unslothai/unsloth.git'")

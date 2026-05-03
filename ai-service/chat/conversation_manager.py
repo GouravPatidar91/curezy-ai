@@ -56,18 +56,18 @@ class ConversationState(BaseModel):
     # Chat history
     messages: List[Message] = []
 
-    # ── Structured intake data (filled by user widgets + document parser) ──
+    #  Structured intake data (filled by user widgets + document parser) 
     collected_data: Dict = {}
 
-    # ── Uploaded files ──
+    #  Uploaded files 
     reports_uploaded: List[dict] = []     # PDFs / text files + their parsed fields
     images_uploaded: List[dict] = []      # Medical images + their AI findings
 
-    # ── Imaging flags (set by detect_imaging_need) ──
+    #  Imaging flags (set by detect_imaging_need) 
     imaging_needed: bool = False
     imaging_types: List[str] = []
 
-    # ── Final analysis ──
+    #  Final analysis 
     analysis_result: Optional[dict] = None
     is_complete: bool = False
 
@@ -301,14 +301,14 @@ class ConversationManager:
 
         cd = state.collected_data or {}
         
-        # ── 1. Patient Info ──
+        #  1. Patient Info 
         patient_info = {
             "age": cd.get("age"),
             "gender": cd.get("gender"),
             "location": cd.get("location") or "India"
         }
 
-        # ── 2. OPQRST ──
+        #  2. OPQRST 
         opqrst = {
             "onset": cd.get("onset"),
             "provocation": cd.get("provocation"),
@@ -318,7 +318,7 @@ class ConversationManager:
             "timing": cd.get("timing")
         }
 
-        # ── 3. Histories (Lists) ──
+        #  3. Histories (Lists) 
         def to_list(val):
             if not val: return []
             if isinstance(val, list): return val
@@ -330,7 +330,7 @@ class ConversationManager:
         allergies          = to_list(cd.get("allergies"))
         family_history     = to_list(cd.get("family_history"))
 
-        # ── 4. Lifestyle ──
+        #  4. Lifestyle 
         lifestyle = cd.get("lifestyle", {
             "smoking": cd.get("smoking"),
             "alcohol": cd.get("alcohol"),
@@ -338,10 +338,10 @@ class ConversationManager:
             "sleep": cd.get("sleep")
         })
 
-        # ── 5. Red Flags ──
+        #  5. Red Flags 
         red_flag_detected = cd.get("red_flag_detected", False)
 
-        # ── 6. Merge Parsed Files ──
+        #  6. Merge Parsed Files 
         # If reports were uploaded, merge their extracted fields where missing
         for report in state.reports_uploaded:
             pf = report.get("parsed_fields", {})
@@ -353,14 +353,14 @@ class ConversationManager:
                 for c in to_list(pf["conditions"]):
                     if c not in medical_history: medical_history.append(c)
 
-        # ── 7. Image Findings (Append to associated) ──
+        #  7. Image Findings (Append to associated) 
         for img in state.images_uploaded:
             findings = img.get("findings", {})
             summary = findings.get("findings") or findings.get("description", "")
             if summary:
                 associated_symptoms.append(f"Image ({img.get('scan_type','scan')}): {summary}")
 
-        # ── 8. Derived legacy fields for backward compatibility ──
+        #  8. Derived legacy fields for backward compatibility 
         # (Used by SemanticCache, Preprocessor, and simpler LLM agents)
         symptoms_str = f"Chief Complaint: {cd.get('chief_complaint', 'Unknown')}. "
         if opqrst['onset']: symptoms_str += f"Started {opqrst['onset']}. "

@@ -17,6 +17,13 @@ class VLLMCouncilClient:
         "Curezy AURIS": os.getenv("AURIS_VLLM_URL", "http://localhost:8003/v1/chat/completions"),
     }
 
+    # Map doctor names to the actual model ID served by the endpoint (crucial for Ollama)
+    MODEL_MAP = {
+        "Curezy AURIX": os.getenv("AURIX_MODEL", "alibayram/medgemma:4b"),
+        "Curezy AURA":  os.getenv("AURA_MODEL",  "casperhansen/llama-3-8b-instruct-awq"),
+        "Curezy AURIS": os.getenv("AURIS_MODEL", "mistral:7b"),
+    }
+
     @retry(
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=2, max=10),
@@ -25,42 +32,63 @@ class VLLMCouncilClient:
     )
     async def query_async(self, prompt: str, model_name: str, num_predict: int = 2048,
                           use_json_schema: bool = False, temperature: float = 0.1) -> str:
-        """Send a request to the appropriate vLLM container."""
-        # Note: 'model_name' here is the doctor name or raw model name depending on who calls it.
-        # We need to map doctor names to endpoints. If it's a direct model name, default to AURIX.
+        """Send a request to the appropriate vLLM/Ollama container."""
         endpoint = self.ENDPOINTS.get(model_name, self.ENDPOINTS["Curezy AURIX"])
+        target_model = self.MODEL_MAP.get(model_name, "model")
         
-        payload = {
-            "model": "model",  # vLLM will serve whatever model it loaded
-            "messages": [
-                {"role": "user", "content": prompt}
-            ],
-            "max_tokens": num_predict,
-            "temperature": temperature,
-            "top_p": 0.9,
-            "frequency_penalty": 0.1,  # roughly equivalent to repeat_penalty
-        }
+        # Detect if we are using the Native Ollama API or OpenAI-compatible (vLLM) API
+        is_native_ollama = "/api/chat" in endpoint
+        is_ollama_openai = "11434/v1" in endpoint
 
-        # Phase 1: Enforce Guided Decoding (Structured Output)
-        if use_json_schema:
-            # Import inside function to avoid circular import since reasoner imports this file
-            from agents.clinical_reasoner import CONDITION_JSON_SCHEMA
-            payload["response_format"] = {
-                "type": "json_schema",
-                "json_schema": {
-                    "name": "diagnosis",
-                    "schema": CONDITION_JSON_SCHEMA,
-                    "strict": True
+        if is_native_ollama:
+            # Native Ollama Format
+            payload = {
+                "model": target_model,
+                "messages": [{"role": "user", "content": prompt}],
+                "stream": False,
+                "options": {
+                    "temperature": temperature,
+                    "num_predict": num_predict,
+                    "top_p": 0.9,
+                    "repeat_penalty": 1.1
                 }
             }
+        else:
+            # OpenAI Format (vLLM or Ollama OpenAI-bridge)
+            payload = {
+                "model": target_model,
+                "messages": [
+                    {"role": "user", "content": prompt}
+                ],
+                "max_tokens": num_predict,
+                "temperature": temperature,
+                "top_p": 0.9,
+            }
+            # Only add JSON schema for vLLM (non-11434 endpoints)
+            if use_json_schema and not is_ollama_openai:
+                from agents.clinical_reasoner import CONDITION_JSON_SCHEMA
+                payload["response_format"] = {
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": "diagnosis",
+                        "schema": CONDITION_JSON_SCHEMA,
+                        "strict": True
+                    }
+                }
 
         try:
             async with httpx.AsyncClient(timeout=120.0) as client:
-                print(f"[vLLM] → {model_name} @ {endpoint}")
+                print(f"[Hybrid] -> {model_name} ({target_model}) @ {endpoint}")
                 response = await client.post(endpoint, json=payload)
                 response.raise_for_status()
                 data = response.json()
-                return data["choices"][0]["message"]["content"]
+                
+                # Extract content based on API type
+                if is_native_ollama:
+                    return data["message"]["content"]
+                else:
+                    return data["choices"][0]["message"]["content"]
+
         except Exception as exc:
             print(f"[vLLM] Error querying {model_name}: {exc}")
             return "{}"

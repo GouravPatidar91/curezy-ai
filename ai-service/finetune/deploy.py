@@ -54,9 +54,9 @@ class OllamaDeploy:
             try:
                 result = self._deploy_model(gguf_path, ft_model_name, doctor_name)
                 deploy_results[doctor_name] = result
-                self.progress_cb(f"✅ {doctor_name} deployed as {ft_model_name}", pct + 4)
+                self.progress_cb(f"[OK] {doctor_name} deployed as {ft_model_name}", pct + 4)
             except Exception as e:
-                print(f"[Deploy] ❌ {doctor_name} deploy failed: {e}")
+                print(f"[Deploy] [FAIL] {doctor_name} deploy failed: {e}")
                 deploy_results[doctor_name] = {"success": False, "error": str(e)}
 
         # Update clinical_reasoner.py if any deployed successfully
@@ -67,7 +67,7 @@ class OllamaDeploy:
         }
         if deployed:
             self._update_council(deployed)
-            self.progress_cb("✅ Council updated with fine-tuned models", 97)
+            self.progress_cb("[OK] Council updated with fine-tuned models", 97)
 
         return deploy_results
 
@@ -95,7 +95,7 @@ class OllamaDeploy:
         if result.returncode != 0:
             raise RuntimeError(f"ollama create failed: {result.stderr}")
 
-        print(f"[Deploy] ✅ {model_name} registered in Ollama")
+        print(f"[Deploy] [OK] {model_name} registered in Ollama")
         return {
             "success":    True,
             "model_name": model_name,
@@ -125,7 +125,7 @@ PARAMETER stop "Assistant:"
 SYSTEM \"\"\"You are {doctor_name}, a fine-tuned medical AI specializing in {specialty}.
 You have been trained on curated medical datasets to provide accurate, evidence-based clinical assessments.
 Always respond with structured clinical reasoning, specific diagnoses, and actionable recommendations.
-Never use placeholder text — always provide real medical condition names and specific clinical details.
+Never use placeholder text -- always provide real medical condition names and specific clinical details.
 Format your responses as valid JSON when structured output is requested.\"\"\"
 """
 
@@ -135,7 +135,7 @@ Format your responses as valid JSON when structured output is requested.\"\"\"
         Keeps the original as a backup comment.
         """
         if not REASONER_PATH.exists():
-            print(f"[Deploy] ⚠️  clinical_reasoner.py not found at {REASONER_PATH}")
+            print(f"[Deploy] [WARN]  clinical_reasoner.py not found at {REASONER_PATH}")
             return
 
         with open(REASONER_PATH, "r", encoding="utf-8") as f:
@@ -146,7 +146,7 @@ Format your responses as valid JSON when structured output is requested.\"\"\"
         if not backup_path.exists():
             with open(backup_path, "w", encoding="utf-8") as f:
                 f.write(content)
-            print(f"[Deploy] 📋 Backed up original to {backup_path.name}")
+            print(f"[Deploy] [REPORT] Backed up original to {backup_path.name}")
 
         # Update model strings for each deployed doctor
         updated_content = content
@@ -176,7 +176,7 @@ Format your responses as valid JSON when structured output is requested.\"\"\"
 
         with open(REASONER_PATH, "w", encoding="utf-8") as f:
             f.write(updated_content)
-        print(f"[Deploy] ✅ Updated COUNCIL models in clinical_reasoner.py")
+        print(f"[Deploy] [OK] Updated COUNCIL models in clinical_reasoner.py")
         print(f"[Deploy]    Changed: {list(deployed.values())}")
 
     def rollback(self, doctor_name: str = None):
@@ -191,7 +191,7 @@ Format your responses as valid JSON when structured output is requested.\"\"\"
 
         import shutil
         shutil.copy(str(backup_path), str(REASONER_PATH))
-        print("[Deploy] ✅ Rolled back to original models")
+        print("[Deploy] [OK] Rolled back to original models")
         return True
 
     def list_finetuned_models(self) -> list:

@@ -56,13 +56,13 @@ def parse_file(file_path: str) -> dict:
 
     result["file_name"] = path.name
     result["char_count"] = len(result.get("text", ""))
-    print(f"[Parser] ✅ Extracted {result['char_count']:,} characters from {path.name}")
+    print(f"[Parser] [OK] Extracted {result['char_count']:,} characters from {path.name}")
     return result
 
 
-# ─────────────────────────────────────────────
+# 
 # Individual parsers
-# ─────────────────────────────────────────────
+# 
 
 def _parse_pdf(file_path: str) -> dict:
     try:
@@ -214,9 +214,9 @@ def _parse_image(file_path: str) -> dict:
     }
 
 
-# ─────────────────────────────────────────────
+# 
 # CLI test mode
-# ─────────────────────────────────────────────
+# 
 
 if __name__ == "__main__":
     import sys
@@ -239,7 +239,7 @@ Diagnosis: Bacterial Meningitis
 Treatment: IV Ceftriaxone, Dexamethasone
 """)
         result = parse_file(sample_path)
-        print(f"\n✅ Parser test passed!")
+        print(f"\n[OK] Parser test passed!")
         print(f"   Type: {result['source_type']}")
         print(f"   Chars: {result['char_count']}")
         print(f"   Preview: {result['text'][:100]}...")

@@ -1,5 +1,5 @@
 """
-agents/fewshot_curator.py — Dynamic Few-Shot Example Curator (Phase 3.2)
+agents/fewshot_curator.py -- Dynamic Few-Shot Example Curator (Phase 3.2)
 Selects the most relevant case examples from the Case Library for each new patient,
 replacing static worked examples with dynamically matched clinical cases.
 """
@@ -7,24 +7,24 @@ replacing static worked examples with dynamically matched clinical cases.
 import os
 from typing import List, Dict, Tuple
 
-# ─────────────────────────────────────────────────────────────────────────────
+# 
 # STATIC FALLBACK FEW-SHOT EXAMPLES
 # Used during cold start (< 50 cases in Case Library).
-# ─────────────────────────────────────────────────────────────────────────────
+# 
 
 STATIC_EXAMPLES: List[Dict] = [
     {
-        "soap_note":  "S: fever 39.5°C, neck stiffness, severe headache, photophobia | Duration: acute (<24h) | Onset: SUDDEN\nO: Age 28, Female.\nC: PMH: none.",
+        "soap_note":  "S: fever 39.5C, neck stiffness, severe headache, photophobia | Duration: acute (<24h) | Onset: SUDDEN\nO: Age 28, Female.\nC: PMH: none.",
         "condition":  "Bacterial Meningitis",
         "probability": 65,
         "evidence":   [
-            "Acute onset fever 39.5°C — consistent with bacterial infection requiring LP",
-            "Neck stiffness — positive meningeal irritation sign",
-            "Photophobia with severe headache — classic meningeal triad",
-            "6-hour rapid onset — bacterial time course vs. gradual viral"
+            "Acute onset fever 39.5C -- consistent with bacterial infection requiring LP",
+            "Neck stiffness -- positive meningeal irritation sign",
+            "Photophobia with severe headache -- classic meningeal triad",
+            "6-hour rapid onset -- bacterial time course vs. gradual viral"
         ],
         "reasoning":  "Classic bacterial meningitis triad with acute onset. LP + IV antibiotics within 1 hour.",
-        "reasoning_summary": "Acute meningeal triad in young adult — bacterial meningitis primary diagnosis until LP excludes it.",
+        "reasoning_summary": "Acute meningeal triad in young adult -- bacterial meningitis primary diagnosis until LP excludes it.",
         "specialty":  "neurology",
         "urgency":    "EMERGENCY",
         "treatment_goal": "Immediate IV broad-spectrum antibiotics, reduce inflammation, manage intracranial pressure",
@@ -34,10 +34,10 @@ STATIC_EXAMPLES: List[Dict] = [
         "condition":  "Acute Myocardial Infarction",
         "probability": 72,
         "evidence":   [
-            "Left arm radiation — classic ACS referred pain pattern",
-            "Diaphoresis (sweating) — sympathetic activation, ACS marker",
+            "Left arm radiation -- classic ACS referred pain pattern",
+            "Diaphoresis (sweating) -- sympathetic activation, ACS marker",
             "Duration >30 min beyond typical angina threshold",
-            "Male 55yo hypertensive — high Framingham cardiac risk"
+            "Male 55yo hypertensive -- high Framingham cardiac risk"
         ],
         "reasoning":  "Classic STEMI/NSTEMI presentation. 12-lead ECG + cath lab activation immediate.",
         "reasoning_summary": "High-probability ACS in hypertensive male. Immediate ECG, cath lab, aspirin 300mg.",
@@ -83,7 +83,7 @@ Step 3: Assign probabilities based on specificity of findings.
 async def get_dynamic_examples(patient_symptoms: List[str], doctor: Dict, n: int = 2) -> str:
     """
     Fetch the most relevant few-shot examples for the current patient.
-    Priority: Case Library (DB) → Static fallback.
+    Priority: Case Library (DB) -> Static fallback.
     """
     try:
         # Try to fetch from Supabase case library

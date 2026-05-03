@@ -1,5 +1,5 @@
 """
-agents/quality_scorer.py — Q-Score Quality Scorer (Phase 2.3)
+agents/quality_scorer.py -- Q-Score Quality Scorer (Phase 2.3)
 Computes an objective Quality Score for each council output, independent of  
 user feedback. Used as the primary training signal for Phase 3 auto-training.
 """
@@ -20,29 +20,29 @@ def _has_placeholder(text: str) -> bool:
 
 
 def score_agreement(agreement_score: float) -> float:
-    """Score 0–100 based on council agreement. 3/3 → 100, 1/3 → 20."""
+    """Score 0-100 based on council agreement. 3/3 -> 100, 1/3 -> 20."""
     return min(100, max(0, agreement_score * 100))
 
 
 def score_confidence_validity(confidence: float) -> float:
     """
-    Penalizes floor values (≤30%) and ceiling values (≥92%).
-    An uncalibrated model often defaults to 60–65% for everything.
+    Penalizes floor values (30%) and ceiling values (92%).
+    An uncalibrated model often defaults to 60-65% for everything.
     """
     if 40 <= confidence <= 85:
         return 100.0  # Healthy range
     elif 30 <= confidence < 40:
         return 65.0   # Low but possible
     elif confidence < 30:
-        return 30.0   # Suspiciously low — likely calibration error
+        return 30.0   # Suspiciously low -- likely calibration error
     elif confidence > 88:
-        return 70.0   # Suspiciously high — overconfidence
+        return 70.0   # Suspiciously high -- overconfidence
     return 80.0
 
 
 def score_evidence_specificity(conditions: List[dict]) -> float:
     """
-    Score 0–100 based on evidence quality.
+    Score 0-100 based on evidence quality.
     Penalizes:
     - Short evidence items (< 15 chars)
     - Placeholder evidence items
@@ -89,7 +89,7 @@ def score_evidence_specificity(conditions: List[dict]) -> float:
 
 def score_probability_differentiation(conditions: List[dict]) -> float:
     """
-    Score 0–100 based on how well-differentiated the probabilities are.
+    Score 0-100 based on how well-differentiated the probabilities are.
     All equal = 0 (template copy). Well spread = 100.
     """
     if len(conditions) < 2:
@@ -110,7 +110,7 @@ def score_rule_alignment(top_condition: str, forced_conditions: List[dict]) -> f
     Score 0 if rules fired but LLM ignored them.
     """
     if not forced_conditions:
-        return 50.0  # Neutral — no rules fired
+        return 50.0  # Neutral -- no rules fired
 
     forced_names = {fc.get("condition", "").lower() for fc in forced_conditions}
     if top_condition.lower() in forced_names:
@@ -124,7 +124,7 @@ def compute_q_score(
 ) -> Dict:
     """
     Compute the full Quality Score breakdown for a FinalClinicalOutput dict.
-    Returns a dict with individual scores and overall Q-score (0–100).
+    Returns a dict with individual scores and overall Q-score (0-100).
     """
     conditions        = council_output.get("top_3_conditions", [])
     consensus_conf    = _safe_float(council_output.get("consensus_confidence", 0))

@@ -1,7 +1,7 @@
 """
 finetune/converter.py
 =====================
-AI JSONL Converter — Takes raw text from the parser and uses Groq
+AI JSONL Converter -- Takes raw text from the parser and uses Groq
 (llama-3.3-70b-versatile) to extract structured medical training examples.
 
 Output format (Alpaca-style, compatible with Unsloth SFTTrainer):
@@ -36,7 +36,7 @@ For each example, create a JSON object with:
 Rules:
 - Make instruction realistic and detailed (patient age, gender, symptoms, duration, history)
 - Make output comprehensive (differential dx with reasoning, next steps, red flags)
-- NEVER use placeholder text — use specific real medical conditions
+- NEVER use placeholder text -- use specific real medical conditions
 - Each example should represent a unique clinical scenario
 - Minimum output length: 100 words
 
@@ -85,9 +85,9 @@ class JSOLConverter:
             print(f"[Converter] Chunk {i+1}/{len(chunks)}...")
             examples = self._convert_chunk(chunk)
             all_examples.extend(examples)
-            print(f"[Converter]   → {len(examples)} examples (total: {len(all_examples)})")
+            print(f"[Converter]   -> {len(examples)} examples (total: {len(all_examples)})")
 
-        print(f"[Converter] ✅ Converted to {len(all_examples)} raw training examples")
+        print(f"[Converter] [OK] Converted to {len(all_examples)} raw training examples")
         return all_examples
 
     def _chunk_text(self, text: str) -> List[str]:
@@ -131,7 +131,7 @@ class JSOLConverter:
             return self._parse_response(raw)
 
         except Exception as e:
-            print(f"[Converter] ⚠️  Groq error: {e}")
+            print(f"[Converter] [WARN]  Groq error: {e}")
             return []
 
     def _parse_response(self, raw: str) -> List[Dict]:
@@ -168,7 +168,7 @@ class JSOLConverter:
                 pass
 
         if not examples:
-            print(f"[Converter] ⚠️  Could not parse response: {raw[:200]}")
+            print(f"[Converter] [WARN]  Could not parse response: {raw[:200]}")
 
         return examples
 
@@ -201,7 +201,7 @@ class JSOLConverter:
         with open(output_path, "w", encoding="utf-8") as f:
             for ex in examples:
                 f.write(json.dumps(ex, ensure_ascii=False) + "\n")
-        print(f"[Converter] 💾 Saved {len(examples)} examples → {output_path}")
+        print(f"[Converter]  Saved {len(examples)} examples -> {output_path}")
         return len(examples)
 
 
@@ -216,14 +216,14 @@ Troponin I elevated at 2.8 ng/mL.
 Diagnosis: Inferior STEMI. Pathophysiology: RCA occlusion causing inferior wall ischemia.
 Treatment: Aspirin 325mg, Clopidogrel, IV heparin, emergent PCI.
 
-Patient: 28-year-old female presents with sudden severe headache "worst of my life", photophobia, neck stiffness, fever 39.2°C.
+Patient: 28-year-old female presents with sudden severe headache "worst of my life", photophobia, neck stiffness, fever 39.2C.
 CSF: xanthochromia, protein elevated, glucose low, Gram stain positive for diplococci.
 Diagnosis: Bacterial Meningitis (Neisseria meningitidis).
 Treatment: IV Ceftriaxone 2g q12h, Dexamethasone 0.15 mg/kg q6h.
 """
         converter = JSOLConverter()
         examples = converter.convert(sample)
-        print(f"\n✅ Converter test: {len(examples)} examples")
+        print(f"\n[OK] Converter test: {len(examples)} examples")
         for i, ex in enumerate(examples):
             print(f"\n--- Example {i+1} ---")
             print(f"Instruction: {ex['instruction'][:100]}...")

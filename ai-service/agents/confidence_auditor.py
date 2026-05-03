@@ -1,5 +1,5 @@
 """
-agents/confidence_auditor.py — Metacognitive Confidence Audit (Phase 1.4)
+agents/confidence_auditor.py -- Metacognitive Confidence Audit (Phase 1.4)
 Final sanity-check LLM call after consensus. Computes an independent confidence
 rating and produces "what would change my diagnosis" suggestions.
 """
@@ -34,7 +34,7 @@ Grade D = differential appears incorrect."""
 
 def build_audit_prompt(soap_note: str, conditions: List[dict], confidence: float) -> str:
     conditions_summary = "\n".join(
-        f"  {i+1}. {c.get('condition','?')} ({c.get('probability','?')}%) — {c.get('reasoning','')[:100]}"
+        f"  {i+1}. {c.get('condition','?')} ({c.get('probability','?')}%) -- {c.get('reasoning','')[:100]}"
         for i, c in enumerate(conditions[:3])
     )
     return AUDIT_PROMPT_TEMPLATE.format(
@@ -55,21 +55,36 @@ def parse_audit_result(raw: dict, existing_missing: List[str]) -> Dict:
     audit_grade           = raw.get("audit_grade", "B")
     confidence_rationale  = raw.get("confidence_rationale", "")
 
-    enriched_missing = list(existing_missing)
+    enriched_missing = []
+    # Deduplicate existing and add new
+    seen = set()
+    for m in existing_missing:
+        cleaned = str(m).strip()
+        if cleaned.lower() not in seen:
+            enriched_missing.append(cleaned)
+            seen.add(cleaned.lower())
+
     for trigger in change_triggers:
         if trigger and len(str(trigger)) > 5:
-            formatted = f"[Would clarify diagnosis] {trigger}"
-            if formatted not in enriched_missing:
+            # Humanize common prefixes
+            t_str = str(trigger)
+            if t_str.startswith("[Would clarify diagnosis] "):
+                formatted = t_str
+            else:
+                formatted = f"Clarify: {t_str}"
+            
+            if formatted.lower() not in seen:
                 enriched_missing.append(formatted)
+                seen.add(formatted.lower())
 
     extra_flags = []
     for flag in red_flags_missed:
         if flag and len(str(flag)) > 5:
             extra_flags.append(f"[AUDIT FLAG] {flag}")
     if audit_grade == "D":
-        extra_flags.append("[AUDIT] Differential may be incorrect — doctor review strongly advised")
+        extra_flags.append("[AUDIT] Differential may be incorrect -- doctor review strongly advised")
     elif audit_grade == "C":
-        extra_flags.append("[AUDIT] Differential incomplete — additional tests recommended")
+        extra_flags.append("[AUDIT] Differential incomplete -- additional tests recommended")
 
     return {
         "independent_confidence": independent_conf,
@@ -89,7 +104,7 @@ def confidence_adjustment(computed: float, audit_conf: float) -> float:
         return computed
     diff = abs(computed - audit_conf)
     if diff > 15:
-        print(f"[Auditor] ⚠️  Large discrepancy: computed={computed}% vs audit={audit_conf}%")
+        print(f"[Auditor] [WARN]  Large discrepancy: computed={computed}% vs audit={audit_conf}%")
     # 60% computed, 40% audit independent
     blended = (computed * 0.6) + (audit_conf * 0.4)
     return round(min(92.0, max(15.0, blended)), 1)

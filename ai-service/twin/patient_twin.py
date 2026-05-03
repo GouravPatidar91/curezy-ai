@@ -7,9 +7,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# ─────────────────────────────────────────
+# 
 # MODELS
-# ─────────────────────────────────────────
+# 
 
 class VisitSnapshot(BaseModel):
     visit_id: str
@@ -41,9 +41,9 @@ class PatientTwin(BaseModel):
     health_trajectory: str   # IMPROVING, STABLE, WORSENING, CRITICAL
 
 
-# ─────────────────────────────────────────
+# 
 # HELPERS
-# ─────────────────────────────────────────
+# 
 
 def _flatten_to_str(value) -> str:
     """Convert any value to a plain string."""
@@ -54,9 +54,9 @@ def _flatten_to_str(value) -> str:
     return str(value)
 
 
-# ─────────────────────────────────────────
+# 
 # PATIENT TWIN ENGINE
-# ─────────────────────────────────────────
+# 
 
 class PatientTwinEngine:
 
@@ -85,22 +85,22 @@ class PatientTwinEngine:
         audit_log_id: str
     ) -> VisitSnapshot:
 
-        # ── Flatten symptoms (may be strings or dicts)
+        #  Flatten symptoms (may be strings or dicts)
         raw_symptoms = patient_state.get("symptoms", [])
         flat_symptoms = [_flatten_to_str(s) for s in raw_symptoms]
 
-        # ── Flatten risk factors (may be strings or dicts)
+        #  Flatten risk factors (may be strings or dicts)
         raw_risks = patient_state.get("risk_factors", [])
         flat_risks = [_flatten_to_str(r) for r in raw_risks]
 
-        # ── Top condition
+        #  Top condition
         top_conditions = clinical_analysis.get("top_3_conditions", [])
         top_condition = (
             top_conditions[0].get("condition", "Unknown")
             if top_conditions else "Unknown"
         )
 
-        # ── Lab highlights (safe serialization)
+        #  Lab highlights (safe serialization)
         lab_highlights = [
             {
                 "test": str(lab.get("test_name", "")),
@@ -122,7 +122,7 @@ class PatientTwinEngine:
             doctor_review_required=clinical_analysis.get("doctor_review_required", False)
         )
 
-        # ── Save to Supabase
+        #  Save to Supabase
         if self.supabase:
             try:
                 self.supabase.table("patient_visits").insert({
@@ -159,7 +159,7 @@ class PatientTwinEngine:
 
             visits = [VisitSnapshot(**v) for v in visits_data]
 
-            # ── Analyze patterns
+            #  Analyze patterns
             all_symptoms = [s for v in visits for s in v.symptoms]
             all_conditions = [v.top_condition for v in visits]
 

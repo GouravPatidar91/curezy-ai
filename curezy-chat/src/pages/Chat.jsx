@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { Send, Mic, MicOff, Phone, Plus, X, FileText, Loader2, Check, Image, Paperclip, ChevronDown, ArrowUp, Brain, Search, Activity, Heart, ShieldCheck, Menu, User } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../config/supabase'
-import { startChat, sendMessage, uploadReport, resumeChat } from '../api/client'
+import { startChat, sendMessage, streamSendMessage, uploadReport, resumeChat } from '../api/client'
 import Sidebar from '../components/Sidebar'
 import MessageBubble from '../components/MessageBubble'
 import AnalysisCard from '../components/AnalysisCard'
@@ -69,27 +69,21 @@ function TypingIndicator() {
 
 // ── Council analysis thinking block ──────────────────────────────────
 
-function AnalysisBubble() {
+function AnalysisBubble({ externalLogs = [] }) {
     const [logs, setLogs] = useState([])
     const [expanded, setExpanded] = useState(true)
     const endRef = useRef(null)
 
     useEffect(() => {
         endRef.current?.scrollIntoView({ behavior: 'smooth' })
-    }, [logs, expanded])
+    }, [logs, expanded, externalLogs])
 
+    // Hardcoded initial sequence for immediate feedback
     useEffect(() => {
         const sequence = [
             { t: 0, msg: "Initializing Secure Diagnostic Environment...", type: "system", icon: <ShieldCheck size={14} className="text-[#666]" /> },
             { t: 800, msg: "Curezy AURIX: Extracting clinical markers from patterns...", type: "gemma", icon: <Brain size={14} className="text-blue-400" /> },
             { t: 2500, msg: "Curezy AURA: Mapping symptoms to biomedical knowledge base...", type: "bio", icon: <Search size={14} className="text-emerald-400" /> },
-            { t: 5000, msg: "Curezy AURIX: Formulating initial differential prioritizations...", type: "gemma", icon: <Brain size={14} className="text-blue-400" /> },
-            { t: 7500, msg: "Curezy AURIS: Stress-testing hypotheses for inconsistencies...", type: "mistral", icon: <Activity size={14} className="text-amber-400" /> },
-            { t: 10500, msg: "Curezy AURA: Verifying compliance with latest clinical guidelines...", type: "bio", icon: <Search size={14} className="text-emerald-400" /> },
-            { t: 13000, msg: "Synthesizing Council consensus and evidence clusters...", type: "system", icon: <Heart size={14} className="text-pink-400" /> },
-            { t: 15500, msg: "AURIS: Conceding to high-probability pathology markers.", type: "mistral", icon: <Activity size={14} className="text-amber-400" /> },
-            { t: 17500, msg: "Finalizing diagnostic confidence weights...", type: "system", icon: <ShieldCheck size={14} className="text-[#666]" /> },
-            { t: 19000, msg: "Compiling detailed clinical assessment report...", type: "system", icon: <ShieldCheck size={14} className="text-[#666]" /> },
         ]
 
         const timers = sequence.map(({ t, msg, type, icon }) =>
@@ -97,6 +91,15 @@ function AnalysisBubble() {
         )
         return () => timers.forEach(clearTimeout)
     }, [])
+
+    const allLogs = [...logs, ...externalLogs.map(msg => ({
+        msg,
+        type: 'realtime',
+        icon: msg.includes('AURIX') ? <Brain size={14} className="text-blue-400" /> :
+              msg.includes('AURA') ? <Search size={14} className="text-emerald-400" /> :
+              msg.includes('AURIS') ? <Activity size={14} className="text-amber-400" /> :
+              <Activity size={14} className="text-accent-green" />
+    }))]
 
     return (
         <div className="mb-6 max-w-2xl">
@@ -124,7 +127,7 @@ function AnalysisBubble() {
 
                 {expanded && (
                     <div className="p-4 bg-[#1a1a1a]/60 font-medium text-[12px] leading-relaxed space-y-3.5 max-h-[320px] overflow-y-auto custom-scrollbar">
-                        {logs.map((log, i) => (
+                        {allLogs.map((log, i) => (
                             <div key={i} className="flex gap-3 fade-in items-start group">
                                 <span className="shrink-0 mt-0.5 opacity-80 group-hover:opacity-100 transition-opacity">
                                     {log.icon || <span className="text-[#444]">&#10095;</span>}
@@ -456,12 +459,14 @@ export default function Chat() {
     const [analysisStep, setAnalysisStep] = useState('initializing')
     const [showingAnalysis, setShowingAnalysis] = useState(false)
     const [showReferral, setShowReferral] = useState(false)
+    const [analysisLogs, setAnalysisLogs] = useState([])
     const [refreshSidebar, setRefreshSidebar] = useState(0)
     const [isRecording, setIsRecording] = useState(false)
     const bottomRef = useRef(null)
     const recognitionRef = useRef(null)
     const initialized = useRef(false)
     const analysisTimerRef = useRef(null)
+    const streamAbortRef = useRef(null)  // AbortController for inflight SSE streams
 
     useEffect(() => {
         bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -497,6 +502,7 @@ export default function Chat() {
         setConvTitle('New Consultation'); setShowReferral(false)
         setShowingAnalysis(false)
         setInput(''); setAnalysisStep('initializing'); setLoading(true)
+        setAnalysisLogs([])
         try {
             const res = await startChat()
             const newBackendId = res.data?.conversation_id
@@ -737,6 +743,7 @@ export default function Chat() {
 
         if (stage === 'confirming') {
             setShowingAnalysis(true)
+            setAnalysisLogs([])
             startAnalysisSequence()
         }
 
@@ -751,89 +758,93 @@ export default function Chat() {
             setRefreshSidebar(n => n + 1)
         }
 
-        const doSend = async (backendId) => {
-            return await sendMessage(backendId, text, selectedModel)
-        }
-
-        let res
+        await dbTouchConversation(user?.id, activeConvId)
+        
         try {
-            res = await doSend(backendConvIdRef.current)
+            // ── Unified SSE stream path (Intake & Analysis) ──
+            streamAbortRef.current?.abort()
+            const ctrl = new AbortController()
+            streamAbortRef.current = ctrl
+            
+            let streamRes
+            try {
+                streamRes = await streamSendMessage(
+                backendConvIdRef.current,
+                text,
+                selectedModel,
+                (statusMsg) => {
+                    setAnalysisLogs(prev => {
+                        if (prev.includes(statusMsg)) return prev
+                        return [...prev, statusMsg]
+                    })
+                },
+                ctrl.signal
+            )
         } catch (err) {
+            if (err?.name === 'AbortError') { setLoading(false); return }
+            // Session expired — recover and retry with SSE
             if (err?.response?.status === 404) {
                 console.warn('[Chat] Backend session expired, recovering...')
                 const newBId = await bootBackendSession()
-                if (!newBId) throw err
-                res = await doSend(newBId)
-            } else if (err?.code === 'ECONNABORTED' || err?.message?.toLowerCase().includes('timeout')) {
-                console.warn('[Chat] Request timed out — backend still processing.')
-                const waitMsg = {
-                    role: 'assistant',
-                    content: 'The AI Council is still analyzing your case -- this can take a few minutes for complex diagnostics. Please wait, results will appear shortly.',
-                    timestamp: new Date().toISOString(),
-                    isInfo: true,
-                }
-                setMessages(prev => [...prev, waitMsg])
-                setLoading(false)
-                return
+                if (newBId) {
+                    try {
+                        streamRes = await streamSendMessage(newBId, text, selectedModel,
+                            (s) => console.log('[Stream recover]', s), ctrl.signal)
+                    } catch (retryErr) {
+                        throw retryErr
+                    }
+                } else { throw err }
             } else {
                 throw err
             }
         }
 
-        try {
-            const reply = res.data?.message || 'Sorry, I could not process that.'
+        // ── Process result (same logic for both intake and analysis results) ──
+        const reply = streamRes?.message || '## 🩺 Curezy AI Health Assessment\n\n✅ Analysis complete — review the detailed clinical report below.'
 
-            if (res.data?.success === false) {
-                throw new Error(reply)
+        if (streamRes?.success === false) throw new Error(streamRes?.message || 'Analysis failed')
+
+        const nextStage = streamRes?.stage || stage
+        setStage(nextStage)
+        const normAnalysis = normalizeAnalysis(streamRes)
+
+        if (nextStage === 'analyzing' || normAnalysis) {
+            if (!showingAnalysis) {
+                setShowingAnalysis(true)
+                startAnalysisSequence()
             }
-
-            const nextStage = res.data?.stage || stage
-            setStage(nextStage)
-
-            const normAnalysis = normalizeAnalysis(res.data)
-
-            if (nextStage === 'analyzing' || normAnalysis) {
-                if (!showingAnalysis) {
-                    setShowingAnalysis(true)
-                    startAnalysisSequence()
+            if (normAnalysis) {
+                setAnalysisResult({ analysis: normAnalysis, confidence: streamRes.confidence, dataGaps: streamRes.data_gaps })
+                const clinicalTitle = generateConsultationTitle(normAnalysis)
+                if (clinicalTitle) {
+                    setConvTitle(clinicalTitle)
+                    await dbUpsertConversation(user?.id, activeConvId, clinicalTitle)
+                    setRefreshSidebar(n => n + 1)
                 }
-
-                if (normAnalysis) {
-                    setAnalysisResult({ analysis: normAnalysis, confidence: res.data.confidence, dataGaps: res.data.data_gaps })
-
-                    // Auto-rename sidebar to professional clinical title based on top diagnosis
-                    const clinicalTitle = generateConsultationTitle(normAnalysis)
-                    if (clinicalTitle) {
-                        setConvTitle(clinicalTitle)
-                        await dbUpsertConversation(user?.id, activeConvId, clinicalTitle)
-                        setRefreshSidebar(n => n + 1)
-                    }
-                    
-                    const aiMsg = { role: 'assistant', content: reply, timestamp: new Date().toISOString() }
-                    setMessages(prev => [...prev, aiMsg])
-                    await dbInsertMessage(user?.id, activeConvId, 'assistant', reply)
-                    
-                    clearInterval(analysisTimerRef.current)
-                    setAnalysisStep('done')
-                    setTimeout(() => {
-                        // Clear any previous dismiss flag — this is a brand-new analysis result
-                        clearReferralDismiss(activeConvId)
-                        setShowingAnalysis(false)
-                        setStage('results')
-                        setShowReferral(true)
-                    }, 3000)
-                } else {
-                    const aiMsg = { role: 'assistant', content: reply, timestamp: new Date().toISOString() }
-                    setMessages(prev => [...prev, aiMsg])
-                    await dbInsertMessage(user?.id, activeConvId, 'assistant', reply)
-                }
+                const aiMsg = { role: 'assistant', content: reply, timestamp: new Date().toISOString() }
+                setMessages(prev => [...prev, aiMsg])
+                await dbInsertMessage(user?.id, activeConvId, 'assistant', reply)
+                clearInterval(analysisTimerRef.current)
+                setAnalysisStep('done')
+                setTimeout(() => {
+                    clearReferralDismiss(activeConvId)
+                    setShowingAnalysis(false)
+                    setStage('results')
+                    setShowReferral(true)
+                }, 3000)
             } else {
                 const aiMsg = { role: 'assistant', content: reply, timestamp: new Date().toISOString() }
                 setMessages(prev => [...prev, aiMsg])
                 await dbInsertMessage(user?.id, activeConvId, 'assistant', reply)
             }
-
-            await dbTouchConversation(user?.id, activeConvId)
+        } else {
+            // Regular intake message
+            const aiMsg = { role: 'assistant', content: reply, timestamp: new Date().toISOString() }
+            setMessages(prev => [...prev, aiMsg])
+            await dbInsertMessage(user?.id, activeConvId, 'assistant', reply)
+            setShowingAnalysis(false)
+        }
+        await dbTouchConversation(user?.id, activeConvId)
         } catch (err) {
             console.error('[Chat] response handling error:', err)
             clearInterval(analysisTimerRef.current)
@@ -1040,7 +1051,7 @@ export default function Chat() {
                             />
                         ))}
 
-                    {showingAnalysis && !convLoading && <AnalysisBubble currentStep={analysisStep} />}
+                    {showingAnalysis && !convLoading && <AnalysisBubble currentStep={analysisStep} externalLogs={analysisLogs} />}
 
                     {analysisResult && stage === 'results' && !convLoading && messages.length > 0 &&
                         /* Only render the standalone fallback card when the trigger message is NOT in history.

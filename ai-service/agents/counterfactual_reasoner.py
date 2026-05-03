@@ -1,5 +1,5 @@
 """
-agents/counterfactual_reasoner.py — Counterfactual Reasoning Engine (Phase 4.1)
+agents/counterfactual_reasoner.py -- Counterfactual Reasoning Engine (Phase 4.1)
 Answers: "What would the diagnosis be if X were different?"
 Adds clinical insight about which symptoms are the most discriminating factors.
 Inspired by Kaushik et al. (2020) counterfactual data augmentation.
@@ -13,7 +13,7 @@ COUNTERFACTUAL_PROMPT = """You are a clinical AI answering counterfactual questi
 Original diagnosis: {condition} ({probability}%)
 Patient: {soap_snippet}
 
-Answer these 3 what-if questions. Be specific — name the condition that would change.
+Answer these 3 what-if questions. Be specific -- name the condition that would change.
 JSON only:
 
 {{
@@ -24,7 +24,7 @@ JSON only:
     "clinical_reason": "<1 sentence>"
   }},
   "severity_counterfactual": {{
-    "question": "If the most severe symptom were 2× worse",
+    "question": "If the most severe symptom were 2 worse",
     "diagnosis_change": "<same|different>",
     "new_top_condition": "<condition name or 'same'>",
     "new_conditions_added": ["<condition that would enter the differential>"],

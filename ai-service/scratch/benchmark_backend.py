@@ -3,7 +3,8 @@ import time
 import json
 
 def benchmark_backend():
-    url = "http://localhost:8000/debug/council"
+    # url = "http://localhost:8000/debug/council"
+    url = "http://34.28.213.87:8000/debug/council"
     payload = {
         "symptoms": "High fever, headache, joint pain, and skin rash. I live in Indore.",
         "age": 28,

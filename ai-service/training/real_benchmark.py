@@ -1,5 +1,5 @@
 """
-Curezy AI â€” Real Industry Benchmark Suite
+Curezy AI  Real Industry Benchmark Suite
 ==========================================
 Uses the SAME question sets that GPT-4, Gemini, Claude are tested on:
 
@@ -21,14 +21,14 @@ Published scores for comparison:
 import os, sys, json, time, datetime, traceback, re
 from pathlib import Path
 
-# â”€â”€ Add parent path for imports when running from training/
+#  Add parent path for imports when running from training/
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 
-# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+# **************************************************************
 # BENCHMARK QUESTION BANKS
 # Real questions from published benchmarks
-# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+# **************************************************************
 
 USMLE_QUESTIONS = [
     # USMLE Step 1
@@ -125,7 +125,7 @@ USMLE_QUESTIONS = [
             "E": "Thoracentesis"
         },
         "correct": "B",
-        "explanation": "Squamous cell lung carcinoma. PET-CT is the standard for initial staging â€” evaluates local, regional, and distant disease simultaneously.",
+        "explanation": "Squamous cell lung carcinoma. PET-CT is the standard for initial staging  evaluates local, regional, and distant disease simultaneously.",
         "category": "Oncology/Pulmonology",
         "difficulty": "medium"
     },
@@ -189,21 +189,21 @@ USMLE_QUESTIONS = [
             "E": "Transfuse packed red blood cells"
         },
         "correct": "B",
-        "explanation": "Methotrexate inhibits dihydrofolate reductase â†’ folate deficiency â†’ megaloblastic anemia. Folic acid supplementation is standard with MTX.",
+        "explanation": "Methotrexate inhibits dihydrofolate reductase  folate deficiency  megaloblastic anemia. Folic acid supplementation is standard with MTX.",
         "category": "Hematology/Rheumatology",
         "difficulty": "medium"
     },
 ]
 
 MMLU_MEDICAL_QUESTIONS = [
-    # MMLU â€” Medical Genetics
+    # MMLU  Medical Genetics
     {
         "id": "MMLU_MG_001",
         "source": "MMLU Medical Genetics",
         "question": "A couple, both carriers of an autosomal recessive disorder, want to know the probability that their child will be affected. What is the probability?",
         "options": {"A": "0%", "B": "25%", "C": "50%", "D": "75%"},
         "correct": "B",
-        "explanation": "Autosomal recessive: Aa x Aa â†’ AA (25%), Aa (50%), aa (25%). 25% chance of affected child.",
+        "explanation": "Autosomal recessive: Aa x Aa  AA (25%), Aa (50%), aa (25%). 25% chance of affected child.",
         "category": "Genetics",
         "difficulty": "easy"
     },
@@ -222,7 +222,7 @@ MMLU_MEDICAL_QUESTIONS = [
         "category": "Genetics",
         "difficulty": "medium"
     },
-    # MMLU â€” Clinical Knowledge
+    # MMLU  Clinical Knowledge
     {
         "id": "MMLU_CK_001",
         "source": "MMLU Clinical Knowledge",
@@ -249,7 +249,7 @@ MMLU_MEDICAL_QUESTIONS = [
             "D": "A combination effect"
         },
         "correct": "C",
-        "explanation": "ACE inhibitors (ramipril) block bradykinin breakdown â†’ bradykinin accumulates in lungs â†’ dry irritating cough in 10-15% of patients.",
+        "explanation": "ACE inhibitors (ramipril) block bradykinin breakdown  bradykinin accumulates in lungs  dry irritating cough in 10-15% of patients.",
         "category": "Pharmacology",
         "difficulty": "easy"
     },
@@ -268,7 +268,7 @@ MMLU_MEDICAL_QUESTIONS = [
         "category": "Nephrology",
         "difficulty": "medium"
     },
-    # MMLU â€” Anatomy
+    # MMLU  Anatomy
     {
         "id": "MMLU_AN_001",
         "source": "MMLU Anatomy",
@@ -280,11 +280,11 @@ MMLU_MEDICAL_QUESTIONS = [
             "D": "Suprascapular nerve"
         },
         "correct": "C",
-        "explanation": "Axillary nerve innervates deltoid muscle (main abductor beyond 15 degrees â€” supraspinatus does first 15). Axillary nerve runs through quadrangular space.",
+        "explanation": "Axillary nerve innervates deltoid muscle (main abductor beyond 15 degrees  supraspinatus does first 15). Axillary nerve runs through quadrangular space.",
         "category": "Anatomy",
         "difficulty": "medium"
     },
-    # MMLU â€” Pharmacology
+    # MMLU  Pharmacology
     {
         "id": "MMLU_PH_001",
         "source": "MMLU Pharmacology",
@@ -296,7 +296,7 @@ MMLU_MEDICAL_QUESTIONS = [
             "D": "Rifampicin decreases warfarin absorption"
         },
         "correct": "B",
-        "explanation": "Rifampicin is a potent CYP450 inducer (especially CYP2C9/3A4). It accelerates warfarin metabolism â†’ lower plasma levels â†’ lower INR. Classic drug interaction.",
+        "explanation": "Rifampicin is a potent CYP450 inducer (especially CYP2C9/3A4). It accelerates warfarin metabolism  lower plasma levels  lower INR. Classic drug interaction.",
         "category": "Pharmacology",
         "difficulty": "medium"
     },
@@ -311,14 +311,14 @@ MMLU_MEDICAL_QUESTIONS = [
             "D": "Hydrochlorothiazide"
         },
         "correct": "C",
-        "explanation": "ACE inhibitors (enalapril) in bilateral RAS: dilate efferent arteriole â†’ GFR drops â†’ acute renal failure. Angiotensin II maintains GFR in this setting.",
+        "explanation": "ACE inhibitors (enalapril) in bilateral RAS: dilate efferent arteriole  GFR drops  acute renal failure. Angiotensin II maintains GFR in this setting.",
         "category": "Pharmacology/Nephrology",
         "difficulty": "hard"
     },
 ]
 
 MEDMCQA_QUESTIONS = [
-    # MedMCQA â€” Indian AIIMS/NEET PG style
+    # MedMCQA  Indian AIIMS/NEET PG style
     {
         "id": "MEDMCQA_001",
         "source": "MedMCQA (AIIMS Pattern)",
@@ -427,7 +427,7 @@ MEDMCQA_QUESTIONS = [
 ]
 
 PUBMEDQA_QUESTIONS = [
-    # PubMedQA â€” Based on real biomedical research conclusions
+    # PubMedQA  Based on real biomedical research conclusions
     {
         "id": "PMQA_001",
         "source": "PubMedQA",
@@ -484,7 +484,7 @@ PUBMEDQA_QUESTIONS = [
             "D": "50%"
         },
         "correct": "C",
-        "explanation": "Low prevalence dramatically reduces PPV. With 1% prevalence, 95% sensitivity, 60% specificity: PPV = (0.95Ã—0.01)/[(0.95Ã—0.01)+(0.40Ã—0.99)] â‰ˆ 2.3%. Most positives are false positives.",
+        "explanation": "Low prevalence dramatically reduces PPV. With 1% prevalence, 95% sensitivity, 60% specificity: PPV = (0.95--0.01)/[(0.95--0.01)+(0.40--0.99)]  2.3%. Most positives are false positives.",
         "category": "Biostatistics/Diagnostics",
         "difficulty": "hard"
     },
@@ -578,7 +578,7 @@ CLINICAL_REASONING_QUESTIONS = [
             "D": "Stevens-Johnson syndrome"
         },
         "correct": "B",
-        "explanation": "Classic exam question: EBV (infectious mono) + amoxicillin/ampicillin â†’ 80-100% develop rash. Not true penicillin allergy â€” immune complex reaction specific to this combination. Patient not necessarily penicillin-allergic.",
+        "explanation": "Classic exam question: EBV (infectious mono) + amoxicillin/ampicillin  80-100% develop rash. Not true penicillin allergy  immune complex reaction specific to this combination. Patient not necessarily penicillin-allergic.",
         "category": "Infectious Disease",
         "difficulty": "medium"
     },
@@ -606,20 +606,20 @@ INDUSTRY_BENCHMARKS = {
 }
 
 
-# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-# BENCHMARK ENGINE  v2  â€”  Full Council Pipeline
+# **************************************************************
+# BENCHMARK ENGINE  v2    Full Council Pipeline
 # Mirrors ClinicalReasoner exactly:
 #   1. ALL 3 models queried IN PARALLEL (ThreadPoolExecutor)
 #   2. Cross-examination DEBATE ROUND   (each sees others' answers)
 #   3. Weighted consensus post-debate   (final council answer)
-# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+# **************************************************************
 
 import concurrent.futures
 import threading
 import uuid
 import ollama as _ollama
 
-# ── In-memory live status store (polled by /benchmark/status API) ──────────
+#  In-memory live status store (polled by /benchmark/status API) 
 _BENCH_STATUS: dict = {
     "job_id":          None,
     "status":          "idle",          # idle | running | completed | failed
@@ -683,7 +683,7 @@ class CouncilBenchmark:
         {"name": "Curezy AURIS", "model": "mistral:7b",                         "weight": 1.2, "specialty": "Differential Diagnosis"},
     ]
 
-    # â”€â”€ Step 1 prompt: each doctor answers the MCQ independently â”€â”€
+    #  Step 1 prompt: each doctor answers the MCQ independently 
     ROUND1_PROMPT = """\
 You are {name}, a medical AI specializing in {specialty}.
 You are in a medical council reviewing a benchmark question.
@@ -700,7 +700,7 @@ INSTRUCTIONS:
 
 Your clinical reasoning and final answer:"""
 
-    # â”€â”€ Step 2 prompt: debate â€” each doctor sees others' answers â”€â”€
+    #  Step 2 prompt: debate  each doctor sees others' answers 
     DEBATE_PROMPT = """\
 You are {name} in a medical council debate.
 
@@ -729,9 +729,9 @@ Your debate response:"""
         except Exception as e:
             raise RuntimeError(f"Ollama not reachable: {e}")
 
-    # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # 
     # Internal helpers
-    # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # 
 
     def _options_text(self, opts: dict) -> str:
         return "\n".join(f"  {k}. {v}" for k, v in opts.items())
@@ -755,7 +755,7 @@ Your debate response:"""
             return {"name": doctor["name"], "model": doctor["model"],
                     "weight": doctor["weight"], "raw_r1": raw, "answer_r1": letter}
         except Exception as e:
-            print(f"    âš ï¸  {doctor['name']} Round-1 error: {e}")
+            print(f"      {doctor['name']} Round-1 error: {e}")
             return {"name": doctor["name"], "model": doctor["model"],
                     "weight": doctor["weight"], "raw_r1": "", "answer_r1": "?"}
 
@@ -765,11 +765,11 @@ Your debate response:"""
         my_ans = my_r1.get("answer_r1", "?")
 
         others_text = "\n".join(
-            f"  {r['name']} ({r.get('weight',1.0)}Ã— weight): {r['answer_r1']}"
+            f"  {r['name']} ({r.get('weight',1.0)}-- weight): {r['answer_r1']}"
             for r in all_r1 if r["name"] != doctor["name"] and r["answer_r1"] != "?"
         )
         if not others_text:
-            # No valid peers â€” keep original answer
+            # No valid peers  keep original answer
             return {**my_r1, "answer_final": my_ans, "raw_debate": "(no peers)"}
 
         prompt = self.DEBATE_PROMPT.format(
@@ -791,7 +791,7 @@ Your debate response:"""
                 letter = my_ans  # Fall back to Round-1 if parse fails
             return {**my_r1, "answer_final": letter, "raw_debate": raw}
         except Exception as e:
-            print(f"    âš ï¸  {doctor['name']} Debate error: {e}")
+            print(f"      {doctor['name']} Debate error: {e}")
             return {**my_r1, "answer_final": my_ans, "raw_debate": f"error: {e}"}
 
     def _extract_letter(self, text: str, tag: str = "ANSWER:") -> str:
@@ -830,9 +830,9 @@ Your debate response:"""
         agreement = (tally[winner] / total_weight) >= 0.5
         return winner, tally, agreement
 
-    # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # 
     # Public: run a single question
-    # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # 
 
     def run_question(self, question: dict, q_index: int = 0) -> dict:
         """Full council pipeline for one question with live status tracking."""
@@ -892,9 +892,9 @@ Your debate response:"""
         }
 
 
-    # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # 
     # Public: run full benchmark
-    # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # 
 
     def run(self, questions=None, mode="full"):
         qs = questions or ALL_QUESTIONS
@@ -902,8 +902,8 @@ Your debate response:"""
             qs = qs[:10]
 
         print(f"\n{'='*70}")
-        print(f"  CUREZY AI â€” FULL COUNCIL BENCHMARK  (v2 â€” Council Pipeline Mode)")
-        print(f"  Pipeline: Parallel Round-1 â†’ Debate Round â†’ Weighted Consensus")
+        print(f"  CUREZY AI  FULL COUNCIL BENCHMARK  (v2  Council Pipeline Mode)")
+        print(f"  Pipeline: Parallel Round-1  Debate Round  Weighted Consensus")
         print(f"  Date: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}")
         print(f"  Questions: {len(qs)} | Council: {len(self.COUNCIL)} doctors")
         print(f"{'='*70}")
@@ -922,12 +922,12 @@ Your debate response:"""
             by_source.setdefault(src, []).append(q)
 
         for src, src_qs in by_source.items():
-            print(f"\n{'â”€'*70}")
+            print(f"\n{''*70}")
             print(f"  {src.upper()}  ({len(src_qs)} questions)")
-            print(f"{'â”€'*70}")
+            print(f"{''*70}")
 
             for q in src_qs:
-                print(f"\n  â–¶ [{q['id']}] {q['question'][:75]}...")
+                print(f"\n  - [{q['id']}] {q['question'][:75]}...")
                 result = self.run_question(q, q_index=results.__len__())
                 results.append(result)
 
@@ -975,12 +975,12 @@ Your debate response:"""
         self._print_report(report)
         self._save_json(report)
         self._save_excel(report, results)
-        print(f"\nðŸ“Š Saved: benchmark_results.json + benchmark_report.xlsx\n")
+        print(f"\n Saved: benchmark_results.json + benchmark_report.xlsx\n")
         return report
 
-    # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # 
     # Compile + Print + Save
-    # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # 
 
     def _compile(self, results, model_scores_r1, model_scores_final,
                  council_correct, total, elapsed):
@@ -1024,7 +1024,7 @@ Your debate response:"""
         return {
             "timestamp":           datetime.datetime.now().isoformat(),
             "mode":                "full_council_pipeline",
-            "pipeline":            "Parallel Round-1 â†’ Debate â†’ Weighted Consensus",
+            "pipeline":            "Parallel Round-1  Debate  Weighted Consensus",
             "total_q":             total,
             "elapsed_s":           elapsed,
             "council": {
@@ -1058,11 +1058,11 @@ Your debate response:"""
   Test Duration:           {r['elapsed_s']}s
 """)
 
-        print("  INDIVIDUAL MODELS â€” Round 1 (pre-debate) vs Final (post-debate):")
+        print("  INDIVIDUAL MODELS  Round 1 (pre-debate) vs Final (post-debate):")
         for name in r["individual_round1"]:
             r1  = r["individual_round1"][name]
             fin = r["individual_postdebate"][name]
-            bar = "â–ˆ" * int(fin / 5) + "â–‘" * (20 - int(fin / 5))
+            bar = "-" * int(fin / 5) + "-" * (20 - int(fin / 5))
             delta = f"(+{fin-r1:.0f}% debate boost)" if fin > r1 else (f"(-{r1-fin:.0f}% post-debate)" if r1 > fin else "(unchanged)")
             print(f"  {name:12} R1:{r1:5.1f}%  Final:{fin:5.1f}%  [{bar}]  {delta}")
 
@@ -1075,7 +1075,7 @@ Your debate response:"""
 
         print("  BY BENCHMARK:")
         for src, d in r["by_benchmark"].items():
-            bar = "â–ˆ" * int(d["pct"] / 5) + "â–‘" * (20 - int(d["pct"] / 5))
+            bar = "-" * int(d["pct"] / 5) + "-" * (20 - int(d["pct"] / 5))
             print(f"  {src[:28]:28} [{bar}] {d['pct']}%  ({d['correct']}/{d['total']})")
 
         print("\n  BY DIFFICULTY:")
@@ -1084,19 +1084,19 @@ Your debate response:"""
 
         print("\n  VS INDUSTRY (Overall Accuracy):")
         all_scores = {
-            "â†’ Curezy Council": sc,
+            " Curezy Council": sc,
             **{k: round(sum(v.values()) / len(v), 1) for k, v in INDUSTRY_BENCHMARKS.items()}
         }
         for name, pct in sorted(all_scores.items(), key=lambda x: x[1], reverse=True):
-            marker = "â—€ YOU" if "Curezy" in name else ""
-            bar    = "â–ˆ" * int(pct / 5) + "â–‘" * (20 - int(pct / 5))
+            marker = "-- YOU" if "Curezy" in name else ""
+            bar    = "-" * int(pct / 5) + "-" * (20 - int(pct / 5))
             print(f"  {name:22} [{bar}] {pct:.1f}%  {marker}")
 
-        if sc >= 85:   rating = "ðŸ† EXCELLENT â€” Matches GPT-4 Level"
-        elif sc >= 75: rating = "âœ… STRONG â€” Better than GPT-3.5"
-        elif sc >= 65: rating = "âš ï¸  GOOD â€” Matches single Med-Gemma"
-        elif sc >= 55: rating = "ðŸ“ˆ DEVELOPING â€” Fine-tuning needed"
-        else:          rating = "ðŸ”§ NEEDS WORK â€” Review model setup"
+        if sc >= 85:   rating = " EXCELLENT  Matches GPT-4 Level"
+        elif sc >= 75: rating = " STRONG  Better than GPT-3.5"
+        elif sc >= 65: rating = "  GOOD  Matches single Med-Gemma"
+        elif sc >= 55: rating = " DEVELOPING  Fine-tuning needed"
+        else:          rating = " NEEDS WORK  Review model setup"
         print(f"\n  RATING: {rating}")
         print(f"{'='*70}\n")
 
@@ -1111,7 +1111,7 @@ Your debate response:"""
 
         wb  = Workbook()
         ws1 = wb.active
-        ws1.title = "ðŸ“Š Dashboard"
+        ws1.title = " Dashboard"
         ws1.sheet_view.showGridLines = False
 
         GREEN = "FF22C55E"; DKGRN = "FF15803D"; LTGRN = "FFD1FAE5"
@@ -1135,7 +1135,7 @@ Your debate response:"""
         # Title
         ws1.merge_cells("A1:J1")
         t = ws1["A1"]
-        t.value     = "CUREZY AI â€” FULL COUNCIL BENCHMARK REPORT  (Parallel + Debate + Consensus)"
+        t.value     = "CUREZY AI  FULL COUNCIL BENCHMARK REPORT  (Parallel + Debate + Consensus)"
         t.font      = Font(bold=True, size=14, color=WHITE, name="Arial")
         t.fill      = PatternFill("solid", fgColor=DKGRN)
         t.alignment = Alignment(horizontal="center", vertical="center")
@@ -1166,11 +1166,11 @@ Your debate response:"""
 
         # Individual model table
         row = 7
-        hdr(ws1, row, 1, "MODEL ACCURACY â€” PRE-DEBATE vs POST-DEBATE", bg=DKGRN)
+        hdr(ws1, row, 1, "MODEL ACCURACY  PRE-DEBATE vs POST-DEBATE", bg=DKGRN)
         ws1.merge_cells(f"A{row}:F{row}")
         row += 1
-        for h, c_idx in [("Model",9),("Round 1",9),("Post-Debate",9),("Î” Debate",9)]:
-            hdr(ws1, row, list([h,"Model","Round 1","Post-Debate","Î” Debate"]).index(h)+1, h, bg=GRAY, size=9)
+        for h, c_idx in [("Model",9),("Round 1",9),("Post-Debate",9),(" Debate",9)]:
+            hdr(ws1, row, list([h,"Model","Round 1","Post-Debate"," Debate"]).index(h)+1, h, bg=GRAY, size=9)
         row += 1
         for name in report["individual_round1"]:
             r1  = report["individual_round1"][name]
@@ -1202,12 +1202,12 @@ Your debate response:"""
         ws1.column_dimensions["C"].width = 14
         ws1.column_dimensions["D"].width = 14
 
-        # Sheet 2 â€” Question by question
-        ws2 = wb.create_sheet("ðŸ“ All Questions")
+        # Sheet 2  Question by question
+        ws2 = wb.create_sheet(" All Questions")
         ws2.sheet_view.showGridLines = False
         ws2.merge_cells("A1:K1")
         t2 = ws2["A1"]
-        t2.value = "QUESTION-BY-QUESTION â€” FULL COUNCIL PIPELINE RESULTS"
+        t2.value = "QUESTION-BY-QUESTION  FULL COUNCIL PIPELINE RESULTS"
         t2.font = Font(bold=True, size=12, color=WHITE, name="Arial")
         t2.fill = PatternFill("solid", fgColor=DKGRN)
         t2.alignment = Alignment(horizontal="center")
@@ -1226,11 +1226,11 @@ Your debate response:"""
             row_vals = [
                 rd["id"], rd["source"], rd["category"], rd["difficulty"],
                 rd["correct_ans"], rd["council_ans"],
-                "âœ… Correct" if rd["council_correct"] else "âŒ Wrong",
+                " Correct" if rd["council_correct"] else " Wrong",
                 vr1.get("Curezy AURIX","?"),
                 vr1.get("Curezy AURA","?"),
                 vr1.get("Curezy AURIS","?"),
-                "ðŸ”„ Yes" if changed else "â€“",
+                " Yes" if changed else "",
             ]
             for j, v in enumerate(row_vals, 1):
                 c = ws2.cell(row=i, column=j, value=v)
@@ -1248,9 +1248,9 @@ Your debate response:"""
         return "benchmark_report.xlsx"
 
 
-# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+# **************************************************************
 # ENTRY POINT
-# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+# **************************************************************
 
 if __name__ == "__main__":
     import argparse

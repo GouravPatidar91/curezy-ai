@@ -2,9 +2,9 @@ from typing import List, Optional
 from pydantic import BaseModel
 
 
-# ─────────────────────────────────────────
+# 
 # MODELS
-# ─────────────────────────────────────────
+# 
 
 class ConfidenceReport(BaseModel):
     overall_confidence: float
@@ -15,9 +15,9 @@ class ConfidenceReport(BaseModel):
     uncertainty_warning: Optional[str]
 
 
-# ─────────────────────────────────────────
+# 
 # UNCERTAINTY ENGINE
-# ─────────────────────────────────────────
+# 
 
 class UncertaintyEngine:
 
@@ -47,7 +47,7 @@ class UncertaintyEngine:
         improvement_suggestions = []
         penalty = 0
 
-        # Factor 1 — Data completeness
+        # Factor 1 -- Data completeness
         completeness = patient_state.get("data_completeness_score", 0)
         if completeness < 50:
             penalty += 20
@@ -62,7 +62,7 @@ class UncertaintyEngine:
                 "Additional lab reports would improve confidence"
             )
 
-        # Factor 2 — Lab reports missing
+        # Factor 2 -- Lab reports missing
         lab_reports = patient_state.get("lab_reports", [])
         if not lab_reports:
             penalty += 15
@@ -71,7 +71,7 @@ class UncertaintyEngine:
                 "CBC, CRP, and basic metabolic panel recommended"
             )
 
-        # Factor 3 — Agent disagreement
+        # Factor 3 -- Agent disagreement
         agents_agreed = clinical_analysis.get("agents_agreed", True)
         if not agents_agreed:
             penalty += 20
@@ -80,7 +80,7 @@ class UncertaintyEngine:
                 "Clinical correlation strongly recommended"
             )
 
-        # Factor 4 — Abnormal labs present
+        # Factor 4 -- Abnormal labs present
         abnormal_labs = [
             lab for lab in lab_reports
             if lab.get("is_abnormal")
@@ -90,7 +90,7 @@ class UncertaintyEngine:
                 f"Follow up on {len(abnormal_labs)} abnormal lab value(s)"
             )
 
-        # Factor 5 — Missing imaging
+        # Factor 5 -- Missing imaging
         imaging = patient_state.get("imaging_findings")
         if not imaging:
             penalty += 5
@@ -98,7 +98,7 @@ class UncertaintyEngine:
                 "Chest X-ray or imaging would improve diagnostic confidence"
             )
 
-        # Factor 6 — Risk factors present
+        # Factor 6 -- Risk factors present
         risk_factors = patient_state.get("risk_factors", [])
         if risk_factors:
             decay_factors.append(
@@ -136,7 +136,7 @@ class UncertaintyEngine:
         improvement_suggestions = []
         penalty = 0
 
-        # Factor 1 — Image quality
+        # Factor 1 -- Image quality
         quality_score = quality.get("quality_score", 0)
         if quality_score < 50:
             penalty += 30
@@ -151,12 +151,12 @@ class UncertaintyEngine:
                 "Better image quality would improve detection accuracy"
             )
 
-        # Factor 2 — Quality issues
+        # Factor 2 -- Quality issues
         issues = quality.get("issues", [])
         for issue in issues:
             decay_factors.append(f"Image issue: {issue}")
 
-        # Factor 3 — Low primary confidence
+        # Factor 3 -- Low primary confidence
         primary_confidence = (
             findings[0].get("confidence", 0) if findings else 0
         )
@@ -167,7 +167,7 @@ class UncertaintyEngine:
                 "CT scan recommended for better visualization"
             )
 
-        # Factor 4 — Close probabilities between findings
+        # Factor 4 -- Close probabilities between findings
         if len(findings) >= 2:
             diff = abs(
                 findings[0].get("probability", 0) -
@@ -210,23 +210,23 @@ class UncertaintyEngine:
         # Check what's missing
         if not patient_state.get("lab_reports"):
             gaps.append(
-                "CBC (Complete Blood Count) — could improve confidence by ~25%"
+                "CBC (Complete Blood Count) -- could improve confidence by ~25%"
             )
             gaps.append(
-                "CRP test — would help differentiate bacterial vs viral infection"
+                "CRP test -- would help differentiate bacterial vs viral infection"
             )
 
         if not patient_state.get("imaging_findings"):
             gaps.append(
-                "Chest X-ray — would improve respiratory condition confidence by ~30%"
+                "Chest X-ray -- would improve respiratory condition confidence by ~30%"
             )
 
         if not patient_state.get("age"):
-            gaps.append("Patient age — affects risk stratification significantly")
+            gaps.append("Patient age -- affects risk stratification significantly")
 
         if not patient_state.get("symptom_duration"):
             gaps.append(
-                "Symptom duration — helps differentiate acute vs chronic conditions"
+                "Symptom duration -- helps differentiate acute vs chronic conditions"
             )
 
         conditions = clinical_analysis.get("top_3_conditions", [])
@@ -238,11 +238,11 @@ class UncertaintyEngine:
             )
             if "pneumonia" in condition_name.lower():
                 gaps.append(
-                    "Sputum culture — would confirm bacterial pneumonia diagnosis"
+                    "Sputum culture -- would confirm bacterial pneumonia diagnosis"
                 )
             if "tb" in condition_name.lower() or "tuberculosis" in condition_name.lower():
                 gaps.append(
-                    "Mantoux test / IGRA — essential for TB confirmation"
+                    "Mantoux test / IGRA -- essential for TB confirmation"
                 )
 
         return gaps

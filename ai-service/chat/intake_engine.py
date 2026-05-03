@@ -1,9 +1,9 @@
 """
-Intake engine — deterministic, stage-by-stage doctor-patient conversation.
+Intake engine -- deterministic, stage-by-stage doctor-patient conversation.
 
 Key design decisions:
   - Each stage has ONE directive: ask exactly one thing.
-  - Any substantive reply (> 2 words) advances the stage — no keyword-gates.
+  - Any substantive reply (> 2 words) advances the stage -- no keyword-gates.
   - After Medications the AI enters CONFIRMING: it summarises findings and
     asks "Shall I proceed with the diagnosis?" Only YES-type replies trigger
     analysis. NO keeps the user in CONFIRMING so they can add more info.
@@ -69,7 +69,7 @@ STAGE_DIRECTIVE = {
         "Region / Radiation: Ask WHERE exactly the symptom is and if it spreads to another area."
     ),
     IntakeStage.OPQRST_SEVERITY: (
-        "Severity: Ask the patient to rate the severity on a scale of 1–10 (1=mild, 10=worst)."
+        "Severity: Ask the patient to rate the severity on a scale of 1-10 (1=mild, 10=worst)."
     ),
     IntakeStage.OPQRST_TIMING: (
         "Timing: Ask how often the symptom occurs (constant, intermittent, getting worse, improving)."
@@ -98,7 +98,7 @@ STAGE_DIRECTIVE = {
         "(e.g. sudden weakness, crushing chest pain, speech difficulty)."
     ),
     IntakeStage.CONFIRMING: (
-        "You have gathered all the necessary information. Write a SHORT 3–4 line summary "
+        "You have gathered all the necessary information. Write a SHORT 3-4 line summary "
         "of what you've learned. Then ask 'Would you like me to proceed with the diagnosis now?'"
     ),
 }
@@ -117,7 +117,7 @@ IMAGING_MAP = {
 
 # Phrases that mean "yes, go ahead"
 YES_PATTERNS = re.compile(
-    r"\b(yes|yeah|yep|sure|ok|okay|proceed|go ahead|do it|start|analyze|let'?s go|please|confirm|ready)\b",
+    r"\b(yes|yeah|yep|sure|ok|okay|proceed|procced|procede|go ahead|do it|start|analyze|let'?s go|please|confirm|ready)\b",
     re.IGNORECASE,
 )
 
@@ -130,16 +130,16 @@ class IntakeEngine:
         self.groq = Groq(api_key=api_key) if api_key else None
         self.model = "llama-3.3-70b-versatile"
 
-    # ── Public helpers ────────────────────────────────────────────────
+    #  Public helpers 
 
     def get_greeting(self) -> str:
         return (
-            "Hello! 👋 I'm **Curezy AI**, your personal health assistant.\n\n"
+            "Hello!  I'm **Curezy AI**, your personal health assistant.\n\n"
             "I'm here to help understand your symptoms and provide you with a detailed "
             "health assessment powered by advanced medical AI.\n\n"
-            "⚠️ *This is not a replacement for a doctor. Always consult a qualified physician "
+            "[WARN] *This is not a replacement for a doctor. Always consult a qualified physician "
             "for medical decisions.*\n\n"
-            "**So, what's bothering you today?** 🩺"
+            "**So, what's bothering you today?** [MED]"
         )
 
     def get_stage_metadata(self, stage: IntakeStage) -> dict:
@@ -162,11 +162,11 @@ class IntakeEngine:
             IntakeStage.RED_FLAGS:          {"title": "Safety Check",        "can_skip": False},
             IntakeStage.REPORTS:            {"title": "Reports",             "can_skip": True},
             IntakeStage.CONFIRMING:         {"title": "Ready?",             "can_skip": False},
-            IntakeStage.ANALYZING:          {"title": "Analyzing…",          "can_skip": False},
+            IntakeStage.ANALYZING:          {"title": "Analyzing",          "can_skip": False},
         }
         return meta.get(stage, {"title": stage.value.replace("_", " ").title(), "can_skip": False})
 
-    # ── Main entry point ──────────────────────────────────────────────
+    #  Main entry point 
 
     def process_message(self, conversation_id: str, user_message: str) -> dict:
         """
@@ -180,10 +180,10 @@ class IntakeEngine:
         current_stage = state.stage
         text = user_message.strip()
 
-        # ── Emergency bypass ──
+        #  Emergency bypass 
         if self._is_emergency(text):
             reply = (
-                "🚨 **EMERGENCY DETECTED** 🚨\n\n"
+                "[ALERT] **EMERGENCY DETECTED** [ALERT]\n\n"
                 "Based on what you've described, please **call emergency services (112/911) immediately** "
                 "or go to the nearest emergency room.\n\n"
                 "Do not wait for an AI assessment in this situation."
@@ -191,20 +191,20 @@ class IntakeEngine:
             self.cm.add_message(conversation_id, MessageRole.ASSISTANT, reply)
             return self._reply(reply, current_stage, False)
 
-        # ── Store user message ──
+        #  Store user message 
         self.cm.add_message(conversation_id, MessageRole.USER, text)
 
-        # ── Save data from this message ──
+        #  Save data from this message 
         self._store_stage_data(conversation_id, current_stage, text, state)
 
-        # ── GREETING stage: first user message IS the chief complaint ──
+        #  GREETING stage: first user message IS the chief complaint 
         # Use Groq to extract ALL clinical data present in the message (onset, severity,
         # associated symptoms, timing, quality, region, etc.) and skip already-answered stages.
         if current_stage == IntakeStage.GREETING:
             # 1. Store the full text as chief_complaint
             self.cm.update_collected_data(conversation_id, "chief_complaint", text)
 
-            # 2. Smart extraction — parse as many OPQRST fields as Groq can infer
+            # 2. Smart extraction -- parse as many OPQRST fields as Groq can infer
             extracted = self._extract_opqrst_from_text(text)
             for field, value in extracted.items():
                 if value and str(value).strip().lower() not in ("null", "none", "unknown", ""):
@@ -222,25 +222,25 @@ class IntakeEngine:
             self.cm.add_message(conversation_id, MessageRole.ASSISTANT, response)
             return self._reply(response, next_unanswered.value, False)
 
-        # ── Handle CONFIRMING stage specially ──
+        #  Handle CONFIRMING stage specially 
         if current_stage == IntakeStage.CONFIRMING:
             if YES_PATTERNS.search(text):
-                # User confirmed → trigger analysis
+                # User confirmed -> trigger analysis
                 self.cm.update_stage(conversation_id, IntakeStage.ANALYZING)
                 ready_msg = (
-                    "Perfect! 🩺 The Curezy Medical Council is now analyzing your case. "
-                    "Three AI doctors are reviewing your information in parallel — "
+                    "Perfect! [MED] The Curezy Medical Council is now analyzing your case. "
+                    "Three AI doctors are reviewing your information in parallel -- "
                     "this will take just a moment."
                 )
                 self.cm.add_message(conversation_id, MessageRole.ASSISTANT, ready_msg)
                 return self._reply(ready_msg, "analyzing", True)
             else:
-                # Not yet confirmed — let them add more or re-ask
+                # Not yet confirmed -- let them add more or re-ask
                 follow_up = self._groq_follow_up(state, text, current_stage)
                 self.cm.add_message(conversation_id, MessageRole.ASSISTANT, follow_up)
                 return self._reply(follow_up, "confirming", False)
 
-        # ── Advance stage if current one is satisfied ──
+        #  Advance stage if current one is satisfied 
         next_stage = self._next_stage(current_stage, text, state)
         if next_stage != current_stage:
             self.cm.update_stage(conversation_id, next_stage)
@@ -250,12 +250,16 @@ class IntakeEngine:
             if next_stage in (IntakeStage.OPQRST_TIMING, IntakeStage.ASSOCIATED):
                 self._detect_imaging(conversation_id, state)
 
-        # ── Generate response for the next stage ──
+        #  Generate response for the next stage 
+        import time
+        g_start = time.time()
         response = self._groq_stage_question(state, next_stage)
+        g_end = time.time()
+        print(f"[Intake] Groq Response: {round(g_end-g_start, 2)}s")
         self.cm.add_message(conversation_id, MessageRole.ASSISTANT, response)
         return self._reply(response, next_stage.value, False)
 
-    # ── Stage data storage ────────────────────────────────────────────
+    #  Stage data storage 
 
     def _store_stage_data(self, conv_id: str, stage: IntakeStage, text: str, state):
         """Map the user's reply to the right field in collected_data."""
@@ -306,7 +310,7 @@ class IntakeEngine:
             if self._is_emergency(text):
                 self.cm.update_collected_data(conv_id, "red_flag_detected", True)
 
-    # ── Stage advancement ─────────────────────────────────────────────
+    #  Stage advancement 
 
     def _next_stage(self, current: IntakeStage, text: str, state) -> IntakeStage:
         """
@@ -338,7 +342,7 @@ class IntakeEngine:
 
         return current
 
-    # ── Stage-answered check ──────────────────────────────────────────
+    #  Stage-answered check 
 
     # Maps each OPQRST stage to the collected_data field that represents it
     STAGE_DATA_FIELD = {
@@ -394,7 +398,7 @@ class IntakeEngine:
 
         return IntakeStage.CONFIRMING
 
-    # ── Groq calls ────────────────────────────────────────────────────
+    #  Groq calls 
 
     def _extract_opqrst_from_text(self, text: str) -> dict:
         """
@@ -467,11 +471,11 @@ class IntakeEngine:
 
         system = (
             "You are a warm, professional medical AI assistant conducting a structured "
-            "patient intake interview. You speak like a real doctor — empathetic but focused.\n\n"
+            "patient intake interview. You speak like a real doctor -- empathetic but focused.\n\n"
             "RULES:\n"
             "1. Ask ONLY the question specified in the directive. Do not ask anything else.\n"
             "2. Do not repeat questions that are already answered (shown in context).\n"
-            "3. Be concise — 1–3 sentences maximum.\n"
+            "3. Be concise -- 1-3 sentences maximum.\n"
             "4. Acknowledge the patient's previous answer briefly before asking the next question.\n"
             "5. Never say 'As an AI' or similar disclaimers.\n"
         )
@@ -509,26 +513,26 @@ class IntakeEngine:
             "Or let me know if you'd like to add anything else."
         )
 
-    # ── Summary building (for CONFIRMING stage) ───────────────────────
+    #  Summary building (for CONFIRMING stage) 
 
     def _build_summary(self, cd: dict) -> str:
         lines = ["Here's a quick summary of what I've gathered:\n"]
         if cd.get("chief_complaint"):
-            lines.append(f"• **Main concern:** {cd['chief_complaint']}")
+            lines.append(f"* **Main concern:** {cd['chief_complaint']}")
         if cd.get("symptoms_text") and cd["symptoms_text"] != cd.get("chief_complaint"):
-            lines.append(f"• **Symptoms:** {cd['symptoms_text']}")
+            lines.append(f"* **Symptoms:** {cd['symptoms_text']}")
         if cd.get("severity"):
-            lines.append(f"• **Severity:** {cd['severity']}/10")
+            lines.append(f"* **Severity:** {cd['severity']}/10")
         if cd.get("duration"):
-            lines.append(f"• **Duration:** {cd['duration']}")
+            lines.append(f"* **Duration:** {cd['duration']}")
         if cd.get("medical_history_text"):
-            lines.append(f"• **Medical history:** {cd['medical_history_text']}")
+            lines.append(f"* **Medical history:** {cd['medical_history_text']}")
         if cd.get("medications_text"):
-            lines.append(f"• **Medications:** {cd['medications_text']}")
+            lines.append(f"* **Medications:** {cd['medications_text']}")
         lines.append("\nWould you like to **proceed with the diagnosis** now?")
         return "\n".join(lines)
 
-    # ── Fallback questions (Groq unavailable) ─────────────────────────
+    #  Fallback questions (Groq unavailable) 
 
     def _fallback_question(self, stage: IntakeStage) -> str:
         fallbacks = {
@@ -552,7 +556,7 @@ class IntakeEngine:
         }
         return fallbacks.get(stage, "Could you tell me more?")
 
-    # ── Imaging detection ─────────────────────────────────────────────
+    #  Imaging detection 
 
     def _detect_imaging(self, conv_id: str, state):
         cd = state.collected_data or {}
@@ -568,7 +572,7 @@ class IntakeEngine:
                 self.cm.set_imaging_needed(conv_id, True, [scan_type])
                 break
 
-    # ── Emergency detection ───────────────────────────────────────────
+    #  Emergency detection 
 
     def _is_emergency(self, text: str) -> bool:
         keywords = [
@@ -587,7 +591,7 @@ class IntakeEngine:
         t = text.lower()
         return any(k in t for k in keywords)
 
-    # ── Reply helpers ─────────────────────────────────────────────────
+    #  Reply helpers 
 
     def _reply(self, response: str, stage, trigger_analysis: bool) -> dict:
         stage_val = stage.value if hasattr(stage, "value") else str(stage)

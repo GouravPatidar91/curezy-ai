@@ -1,1 +1,1 @@
-# Curezy AI — Automated Fine-Tuning Pipeline
+# Curezy AI -- Automated Fine-Tuning Pipeline

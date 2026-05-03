@@ -8,20 +8,25 @@ class RAGRetriever:
     based on semantic similarity to patient symptoms.
     """
     def __init__(self):
+        self.enabled = False # Initialize first to prevent AttributeErrors
         self.supabase_url = os.getenv("SUPABASE_URL")
-        self.supabase_key = os.getenv("SUPABASE_SERVICE_KEY")
+        # Support both naming conventions
+        self.supabase_key = os.getenv("SUPABASE_SERVICE_KEY") or os.getenv("SUPABASE_KEY")
         
         if not self.supabase_url or not self.supabase_key:
-            print("[RAG] ⚠️ Supabase credentials missing. RAG is disabled.")
+            print("[RAG] Supabase credentials missing. RAG is disabled.")
             self.supabase = None
             return
             
-        self.supabase: Client = create_client(self.supabase_url, self.supabase_key)
-        
-        # Load the same lightweight embedding model used for Semantic Cache
-        print("[RAG] Loading embedding model...")
-        self.model = SentenceTransformer('all-MiniLM-L6-v2')
-        self.enabled = True
+        try:
+            self.supabase: Client = create_client(self.supabase_url, self.supabase_key)
+            # Load the same lightweight embedding model used for Semantic Cache
+            print("[RAG] Loading embedding model...")
+            self.model = SentenceTransformer('all-MiniLM-L6-v2')
+            self.enabled = True
+        except Exception as e:
+            print(f"[RAG] Failed to initialize: {e}")
+            self.enabled = False
 
     def retrieve_guidelines(self, symptoms_text: str, top_k: int = 3, threshold: float = 0.5) -> str:
         """
