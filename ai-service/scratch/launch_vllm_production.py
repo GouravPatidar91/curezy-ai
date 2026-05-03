@@ -50,22 +50,22 @@ containers = [
         "name": "aurix",
         "port": 8001,
         "model": "bartowski/OpenBioLLM-Llama3-8B-AWQ", 
-        "util": 0.35,
-        "extra": "--quantization awq"
+        "util": 0.42,
+        "extra": "--quantization awq --max-model-len 2048"
     },
     {
         "name": "aura",
         "port": 8002,
         "model": "BioMistral/BioMistral-7B-AWQ-QGS128-W4-GEMM",
-        "util": 0.28,
-        "extra": "--quantization awq"
+        "util": 0.32,
+        "extra": "--quantization awq --max-model-len 1024"
     },
     {
         "name": "auris",
         "port": 8003,
         "model": "bartowski/gemma-2-2b-it-AWQ",
-        "util": 0.12,
-        "extra": "--quantization awq"
+        "util": 0.15,
+        "extra": "--quantization awq --max-model-len 1024"
     }
 ]
 
@@ -81,7 +81,6 @@ for c in containers:
         f"vllm/vllm-openai:v0.6.3.post1 "
         f"--model {c['model']} "
         f"--gpu-memory-utilization {c['util']} "
-        f"--max-model-len 2048 "
         f"{c['extra']}"
     )
     run_remote(cmd)
