@@ -12,9 +12,9 @@ class VLLMCouncilClient:
     """
 
     ENDPOINTS = {
-        "Curezy AURIX": os.getenv("AURIX_VLLM_URL", "http://localhost:8001/v1/chat/completions"),
-        "Curezy AURA":  os.getenv("AURA_VLLM_URL",  "http://localhost:8002/v1/chat/completions"),
-        "Curezy AURIS": os.getenv("AURIS_VLLM_URL", "http://localhost:8003/v1/chat/completions"),
+        "Curezy AURIX": os.getenv("AURIX_VLLM_URL", "http://127.0.0.1:8001/v1/chat/completions"),
+        "Curezy AURA":  os.getenv("AURA_VLLM_URL",  "http://127.0.0.1:8002/v1/chat/completions"),
+        "Curezy AURIS": os.getenv("AURIS_VLLM_URL", "http://127.0.0.1:8003/v1/chat/completions"),
     }
 
     # Map doctor names to the actual model ID served by the vLLM endpoints.
