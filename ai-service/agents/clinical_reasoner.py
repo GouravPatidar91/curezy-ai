@@ -207,18 +207,18 @@ COUNCIL = [
     },
     {
         "name": "Curezy AURA",
-        "model": "llama3.2:3b",
+        "model": "koesn/llama3-openbiollm-8b:latest",
         "specialty": "Clinical Researcher",
-        "role": "Speed Validator",
-        "weight": 1.3, # Slightly lower weight for smaller model
+        "role": "Evidence Validator",
+        "weight": 1.4,
         "tokens": 2048
     },
     {
         "name": "Curezy AURIS",
-        "model": "gemma2:2b",
+        "model": "mistral:7b",
         "specialty": "Medical Analyst",
-        "role": "Fast Triage",
-        "weight": 1.1,
+        "role": "Devil's Advocate",
+        "weight": 1.2,
         "tokens": 1536
     },
 ]
